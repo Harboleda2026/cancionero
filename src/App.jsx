@@ -1,694 +1,846 @@
-import { useState, useEffect, useMemo } from 'react';
-import { 
-  Music, Search, Star, Cloud, PlusCircle, Download, 
-  BookOpen, SlidersHorizontal, ChevronRight, X, ArrowLeft, RefreshCw
-} from 'lucide-react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 
-// Respaldo base con normalización defensiva
-const RAW_BACKUP = [
-  {
-    id: "1791515587314",
-    title: "INPERSONA CHRISTI",
-    category: "Iglesia",
-    liturgicalTime: "ORDINARIO",
-    subcategory: "COMUNIÓN",
-    originalKey: "DO",
-    bpm: "63",
-    favorite: true,
-    lastOpened: 1791515627481,
-    body: `C                  G\nYa no soy yo quien vive,\n     F                 C\ntu eres quien vive en mi\nAm                 Em\nmi vida la he perdido\n      F              G\npues todo lo vivo en ti.\n\n(Coro)\n C     Em  F    G   Am    Em   F    G\nIn persona Christi, In persona Christi\n Am          Em     F          C\nEste es mi cuerpo, Esta es mi sangre\nAm     Em   F   G\nIn persona Christi\n Am      Em    F       C\nTomen y coman Tomen y beban\n     F        G   F         G   C\nQue este soy yo In persona Christi.`
-  },
-  {
-    id: "1790379068484",
-    title: "Yo sé que estas aquí",
-    category: "Iglesia",
-    liturgicalTime: "ORDINARIO",
-    subcategory: "ENTRADA",
-    originalKey: "REm",
-    favorite: false,
-    lastOpened: 1790549236924,
-    body: `REm              LA7\n/Yo sé que estás aquí, mi Señor,\n                 REm\nyo sé que estás aquí./ (bis)\n   RE7              SOLm\n/Y mi alma te adora\n   DO7             FA\ny mi alma te adora,\n   LA#7          SOLm\ny mi alma te adora,\n   LA7                    REm\nporque sé que estás aquí./ (bis)`
-  },
-  {
-    id: "1790379781362",
-    title: "La Mano de Dios",
-    category: "Iglesia",
-    liturgicalTime: "ORDINARIO",
-    subcategory: "ADORACIÓN",
-    originalKey: "G#",
-    favorite: false,
-    lastOpened: 1791858018422,
-    body: ` G#                     C#         G#\n//  La mano de Dios es la que me fortalece\n         C#                  D#           G#\ncuando estoy atravesando el valle de la muerte\nG#                    C#       G#\n La mano de Dios e la que me purifica\n          C#         D#               G#            D#\ny en el camino más oscuro tu eres mi guia  //`
-  },
-  {
-    id: "1790550339820",
-    title: "CAMINANDO DESDE ORIENTE",
-    liturgicalTime: "NAVIDAD",
-    subcategory: "ENTRADA",
-    originalKey: "SOL",
-    favorite: false,
-    lastOpened: 1790892945962,
-    body: `   Sol        Do     Sol\n1. Caminando desde Oriente \n    Mim           Sol\nse acercan ya los reyes\n           Do    Sol\ncaminando desde Oriente\n     Mim       Sol\n ya llegan a Belén.`
-  },
-  {
-    id: "1790551743623",
-    title: "ESTE ES EL MOMENTO",
-    liturgicalTime: "ORDINARIO",
-    subcategory: "OFRENDAS",
-    originalKey: "FA",
-    favorite: false,
-    lastOpened: 1790608073804,
-    body: `FA                      LAm\nEste es el momento de alegrar la mesa\nREm                   SOLm\ncon el vino y con el pan,\nSOLm                  DO7\nque consagraremos\n   SOLm             DO7\ny que ofreceremos\n    SOLm                        FA#  -    FA\ny que hemos de comulgar.`
-  },
-  {
-    id: "1790552295899",
-    title: "JUNTOS NOS ACERCAMOS",
-    liturgicalTime: "ORDINARIO",
-    subcategory: "OFRENDAS",
-    originalKey: "DO",
-    favorite: false,
-    lastOpened: 1791757836851,
-    body: `DO          SOL\nJuntos nos acercamos a esta\nLAm       FA\nmesa para ofrecer,\nDO           REm            SOL\ntodo lo que tenemos es para ti.`
-  },
-  {
-    id: "1792002888547",
-    title: "Te Entrego",
-    subcategory: "ADORACIÓN",
-    liturgicalTime: "ORDINARIO",
-    originalKey: "SOL",
-    artist: "Joan Sanchez",
-    favorite: false,
-    lastOpened: 1792003003138,
-    body: `G                    Cadd9\n    Haz lo que quieras conmigo\n   G                       D/F#\n    haz lo  que quieras en mi\n   C                       C/B3\n    hoy yo te ofrezco mi vida\n   Am                    D/F#\n    hoy yo me rindo ante Ti //\n\nCORO\n      G              D/F#               Em7\nTe entrego todo lo que soy todo lo que tengo\n              D/F#                  C\ntodo lo que quiero y todo lo que sueño\n  Am          D/F#\na Ti Señor Jesus   //`
-  },
-  {
-    id: "1792003220928",
-    title: "Venimos a Adorar",
-    subcategory: "ADORACIÓN",
-    liturgicalTime: "ORDINARIO",
-    originalKey: "RE",
-    artist: "JESED",
-    favorite: false,
-    lastOpened: 0,
-    body: `RE             MIm  LA                 RE    SIm\n El Rey del Universo y Señor de la creación\n                   MIm  SOL            LA\n se viene a ser presente en medio de nosotros.\nRE             MIm  LA             RE    SIm\n El santo sacramento, Jesús Eucaristía\n               MIm    SOL                  RE\n rodeado de sus ángeles ya está presente aquí.`
-  }
+/* ============ Constantes y motor de acordes ============ */
+const KEY = 'cancionero_cloud_v1';
+const DEFAULT_CLOUD = 'https://mi-cancionero-6d816-default-rtdb.firebaseio.com/cancionero.json';
+
+const LAT_SH = ['DO','DO#','RE','RE#','MI','FA','FA#','SOL','SOL#','LA','LA#','SI'];
+const LAT_FL = ['DO','REb','RE','MIb','MI','FA','SOLb','SOL','LAb','LA','SIb','SI'];
+const AM_SH = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const AM_FL = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+const BASE = { DO:0, RE:2, MI:4, FA:5, SOL:7, LA:9, SI:11, C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
+const ROOT = /^(DO|Do|RE|Re|MI|Mi|FA|Fa|SOL|Sol|LA|La|SI|Si|[A-G])([#b])?/;
+const REST = /^(?:m|im|maj|M|min|dim|aug|sus|add|\d|[#b+\-º°()])*$/;
+const TIEMPOS = ['ORDINARIO','NAVIDAD','CUARESMA','PASCUA','ADVIENTO'];
+const MOMENTOS = ['ENTRADA','PIEDAD','GLORIA','ALELUYA','OFRENDAS','SANTO','PAZ','CORDERO','COMUNIÓN','ADORACIÓN','SALIDA'];
+
+const THEMES = [
+  ['nocturno','Atril Nocturno','Carbón cálido y terracota'],
+  ['escenario','Modo Escenario','Slate con acordes ámbar'],
+  ['misal','Misal Editorial','Pergamino con acordes rojos'],
+  ['estudio','Modo Estudio','Perla con acentos índigo'],
 ];
+const SYNC_TXT = { local:'Local: guardado', busy:'Sincronizando…', ok:'Nube: Sincronizada', err:'Error de sincronización' };
+const BADGE_TXT = { local:'Guardado local', busy:'Sincronizando…', ok:'Sincronizado', err:'Error de nube' };
 
-const ROOT_MAP = {
-  'DO': 0, 'DO#': 1, 'REB': 1, 'RE': 2, 'RE#': 3, 'MIB': 3, 'MI': 4,
-  'FA': 5, 'FA#': 6, 'SOLB': 6, 'SOL': 7, 'SOL#': 8, 'LAB': 8, 'LA': 9, 'LA#': 10, 'SIB': 10, 'SI': 11,
-  'C': 0, 'C#': 1, 'DB': 1, 'D': 2, 'D#': 3, 'EB': 3, 'E': 4,
-  'F': 5, 'F#': 6, 'GB': 6, 'G': 7, 'G#': 8, 'AB': 8, 'A': 9, 'A#': 10, 'BB': 10, 'B': 11
+const parsePart = (t) => {
+  const m = ROOT.exec(t);
+  if (!m) return null;
+  const rest = t.slice(m[0].length);
+  return REST.test(rest) ? { root: m[1], acc: m[2] || '', rest } : null;
 };
-const SCALE_LATIN = ['DO', 'DO#', 'RE', 'RE#', 'MI', 'FA', 'FA#', 'SOL', 'SOL#', 'LA', 'LA#', 'SI'];
-const SCALE_AMERICAN = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
-export default function App() {
-  const [songs, setSongs] = useState(() => {
-    const saved = localStorage.getItem('cancionero_cloud_v1');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.songs && Array.isArray(parsed.songs)) return parsed.songs;
-      } catch (e) {}
+const parseChord = (t) => {
+  const [a, b, ...x] = t.split('/');
+  if (x.length) return null;
+  const p = parsePart(a);
+  if (!p) return null;
+  let bass = null;
+  if (b !== undefined) {
+    bass = parsePart(b);
+    if (!bass || (bass.rest && !/^\d$/.test(bass.rest))) return null;
+  }
+  return { p, bass };
+};
+
+const isChordLine = (line) => {
+  if (!line.trim()) return false;
+  const tk = line.trim().split(/\s+/);
+  if (tk.length === 1 && /^(Do|Re|Mi|Fa|Sol|La|Si)$/.test(tk[0])) return false;
+  return tk.every((t) => parseChord(t));
+};
+
+const fmtRoot = (p, steps, mode) => {
+  const b = BASE[p.root.toUpperCase()];
+  const idx = (b + (p.acc === '#' ? 1 : p.acc === 'b' ? -1 : 0) + steps + 120) % 12;
+  const flat = p.acc === 'b';
+  const latin = mode === 'lat' || (mode === 'orig' && p.root.length > 1);
+  if (!latin) return (flat ? AM_FL : AM_SH)[idx];
+  const n = (flat ? LAT_FL : LAT_SH)[idx];
+  const upper = p.root.length > 1 && p.root === p.root.toUpperCase();
+  return upper ? n : n[0] + n.slice(1).replace(/^[A-Z]+/, (s) => s.toLowerCase());
+};
+
+const fmtChord = (t, steps, mode) => {
+  const c = parseChord(t);
+  if (!c) return t;
+  let rest = c.p.rest;
+  const latinOut = mode === 'lat' || (mode === 'orig' && c.p.root.length > 1);
+  if (!latinOut && rest.startsWith('im') && !/^i?m?(dim)/.test(rest)) rest = 'm' + rest.slice(2);
+  let out = fmtRoot(c.p, steps, mode) + rest;
+  if (c.bass) out += '/' + fmtRoot(c.bass, steps, mode) + c.bass.rest;
+  return out;
+};
+
+// Reconstruye la línea compensando el cambio de ancho para no perder la alineación
+const convLine = (line, steps, mode) => {
+  let drift = 0, out = '', m;
+  const re = /(\S+)(\s*)/g;
+  while ((m = re.exec(line))) {
+    const n = fmtChord(m[1], steps, mode);
+    drift += n.length - m[1].length;
+    let gap = m[2];
+    if (gap.length && drift) {
+      const g = Math.max(1, gap.length - drift);
+      drift -= gap.length - g;
+      gap = ' '.repeat(g);
     }
-    return RAW_BACKUP;
-  });
+    out += n + gap;
+  }
+  return line.match(/^\s*/)[0] + out;
+};
 
-  const [activeTab, setActiveTab] = useState('inicio'); // 'inicio' | 'repertorios' | 'ajustes'
-  const [selectedSongId, setSelectedSongId] = useState(null);
-  const [search, setSearch] = useState('');
-  const [activeFilter, setActiveFilter] = useState('TODOS');
-  const [transpose, setTranspose] = useState(0);
-  const [notation, setNotation] = useState('original');
-  const [fontSize, setFontSize] = useState(16);
+// Normaliza cualquier URL de Firebase para asegurar que termine en /cancionero.json
+const normalizeCloudUrl = (url) => {
+  const clean = String(url || '').trim();
+  if (!clean) return '';
+  if (clean.endsWith('.json')) return clean;
+  return clean.replace(/\/+$/, '') + '/cancionero.json';
+};
 
-  // Nube / Firebase
-  const [cloudUrl, setCloudUrl] = useState(() => localStorage.getItem('cancionero_cloud_url') || '');
-  const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState('Sincronizado');
-
-  // Guardado local reactivo
-  useEffect(() => {
-    localStorage.setItem('cancionero_cloud_v1', JSON.stringify({
-      app: 'cancionero',
-      version: 1,
-      exported: new Date().toISOString(),
-      songs
-    }));
-  }, [songs]);
-
-  // Canto seleccionado y normalización
-  const selectedSong = useMemo(() => {
-    return songs.find(s => s.id === selectedSongId) || null;
-  }, [songs, selectedSongId]);
-
-  // Último canto abierto para la barra flotante
-  const lastSong = useMemo(() => {
-    const list = [...songs].sort((a, b) => (b.lastOpened || 0) - (a.lastOpened || 0));
-    return list[0] || songs[0];
-  }, [songs]);
-
-  // Recientes (ordenados por lastOpened)
-  const recentSongs = useMemo(() => {
-    return [...songs]
-      .filter(s => (s.lastOpened || 0) > 0)
-      .sort((a, b) => b.lastOpened - a.lastOpened)
-      .slice(0, 4);
-  }, [songs]);
-
-  // Favoritas
-  const favoriteSongs = useMemo(() => {
-    return songs.filter(s => s.favorite === true);
-  }, [songs]);
-
-  // Catálogo completo filtrado
-  const filteredCatalog = useMemo(() => {
-    const q = search.toLowerCase();
-    return songs.filter(s => {
-      const matchesSearch = s.title.toLowerCase().includes(q) ||
-        (s.body && s.body.toLowerCase().includes(q)) ||
-        (s.artist && s.artist.toLowerCase().includes(q));
-      const momentTag = (s.subcategory || s.category || '').toUpperCase();
-      const seasonTag = (s.liturgicalTime || '').toUpperCase();
-      const matchesFilter = activeFilter === 'TODOS' || momentTag === activeFilter || seasonTag === activeFilter;
-      return matchesSearch && matchesFilter;
-    });
-  }, [songs, search, activeFilter]);
-
-  // Lista única de Tiempos Litúrgicos para la barra lateral
-  const liturgicalTimes = useMemo(() => {
-    const set = new Set();
-    songs.forEach(s => {
-      if (s.liturgicalTime) set.add(s.liturgicalTime.toUpperCase());
-    });
-    return Array.from(set);
-  }, [songs]);
-
-  const openSong = (id) => {
-    setSelectedSongId(id);
-    setTranspose(0);
-    setSongs(prev => prev.map(s => s.id === id ? { ...s, lastOpened: Date.now() } : s));
+/* ============ Datos defensivos y Catálogo Inicial ============ */
+const norm = (s) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const normSong = (s) => {
+  s = s && typeof s === 'object' ? s : {};
+  return {
+    id: String(s.id ?? Date.now() + Math.random().toString(36).slice(2, 6)),
+    title: String(s.title || 'Sin título'),
+    category: String(s.category || ''),
+    liturgicalTime: String(s.liturgicalTime || 'ORDINARIO').toUpperCase(),
+    subcategory: String(s.subcategory || s.category || 'COMUNIÓN').toUpperCase(),
+    originalKey: String(s.originalKey || ''),
+    artist: String(s.artist || ''),
+    bpm: String(s.bpm ?? ''),
+    notes: String(s.notes || ''),
+    favorite: (s.favorite ?? false) === true,
+    lastOpened: Number(s.lastOpened) || 0,
+    body: String(s.body || ''),
   };
+};
 
-  const toggleFavorite = (id, e) => {
-    e.stopPropagation();
-    setSongs(prev => prev.map(s => s.id === id ? { ...s, favorite: !s.favorite } : s));
+const normData = (d) => {
+  d = d && typeof d === 'object' ? d : {};
+  return {
+    app: 'cancionero',
+    version: 1,
+    songs: (Array.isArray(d.songs) ? d.songs : []).map(normSong),
+    setlists: (Array.isArray(d.setlists) ? d.setlists : []).map((l) => ({
+      id: String((l && l.id) || Date.now()),
+      name: String((l && l.name) || 'Repertorio'),
+      songIds: Array.isArray(l && l.songIds) ? l.songIds.map(String) : [],
+    })),
+    audios: d.audios && typeof d.audios === 'object' ? d.audios : {},
   };
+};
 
-  // Motor de transposición de acordes
-  const isChordLine = (line) => {
-    const trimmed = line.trim();
-    if (!trimmed) return false;
-    const tokens = trimmed.replace(/[\/\-\(\)~]/g, ' ').split(/\s+/).filter(Boolean);
-    if (!tokens.length) return false;
-    const regex = /^(DO|RE|MI|FA|SOL|LA|SI|Do|Re|Mi|Fa|Sol|La|Si|[A-G])(#|b)?(m|im|maj|dim|aug|sus|add)?[0-9]*(\/(DO|RE|MI|FA|SOL|LA|SI|Do|Re|Mi|Fa|Sol|La|Si|[A-G])(#|b)?[0-9]*)?$/;
-    const count = tokens.filter(t => regex.test(t)).length;
-    return count / tokens.length >= 0.6;
-  };
+const SEED = {
+  songs: [
+    {
+      id: '1791515587314',
+      title: 'IN PERSONA CHRISTI',
+      category: 'Iglesia',
+      liturgicalTime: 'ORDINARIO',
+      subcategory: 'COMUNIÓN',
+      originalKey: 'DO',
+      artist: 'JESED',
+      bpm: '63',
+      favorite: true,
+      lastOpened: Date.now(),
+      body: `DO                 SOL/SI              LAm          LAm/SOL
+Ya no soy yo quien vive, tú eres quien vive en mí
+FA                  DO/MI             REm              SOL
+mi vida la he perdido, pues todo lo vivo en ti.
+LAm                MI/SOL#            DO/SOL           RE/FA#
+Tú pronuncias con mis labios las palabras de tu boca
+FA                 DO/MI              REm              SOL
+y levantas en mis manos el misterio de tu cuerpo.
 
-  const transposeToken = (token) => {
-    const match = token.match(/^(DO|RE|MI|FA|SOL|LA|SI|Do|Re|Mi|Fa|Sol|La|Si|[A-G])(#|b)?(.*)$/);
-    if (!match) return token;
-    const rawRoot = (match[1] + (match[2] || '')).toUpperCase();
-    let suffix = match[3] || '';
-    const isLatin = match[1].length > 1;
-    if (!(rawRoot in ROOT_MAP)) return token;
+FA                 SOL                DO        SOL/SI    LAm
+Tu espíritu mora en mí y mi espíritu mora en ti.
 
-    const idx = (ROOT_MAP[rawRoot] + transpose + 120) % 12;
-    let useLatin = isLatin;
-    if (notation === 'latina') useLatin = true;
-    if (notation === 'americana') useLatin = false;
-    if (suffix.startsWith('im')) suffix = 'm' + suffix.slice(2);
+DO        SOL/SI      LAm     LAm/SOL   FA        DO/MI     REm       SOL
+In persona Christi, In persona Christi, este es mi cuerpo, esta es mi sangre.
+DO        SOL/SI      LAm     LAm/SOL   FA           SOL         DO
+In persona Christi, In persona Christi, tomen y coman, tomen y beban.
+FA                 SOL                MI7              LAm
+Que este sacrificio sea agradable a Dios Padre,
+FA                 SOL                DO
+por la salvación del mundo entero.`,
+    },
+    {
+      id: '1791515587315',
+      title: 'Yo sé que estás aquí',
+      category: 'Iglesia',
+      liturgicalTime: 'ORDINARIO',
+      subcategory: 'ADORACIÓN',
+      originalKey: 'REm',
+      artist: 'Renovación',
+      bpm: '68',
+      favorite: true,
+      lastOpened: Date.now() - 10000,
+      body: `REm                      SOLm
+Yo sé que estás aquí, mi Señor,
+DO                       FA       LA7
+yo sé que estás aquí. (2)
 
-    const newRoot = useLatin ? SCALE_LATIN[idx] : SCALE_AMERICAN[idx];
-    return newRoot + suffix;
-  };
+REm                      SOLm
+Y mi alma te alaba, y mi alma te alaba,
+DO                       FA       LA7
+y mi alma te alaba, porque sé que estás aquí. (2)`,
+    },
+    {
+      id: '1791515587316',
+      title: 'La Mano de Dios',
+      category: 'Iglesia',
+      liturgicalTime: 'ORDINARIO',
+      subcategory: 'ADORACIÓN',
+      originalKey: 'SOL',
+      artist: 'Jon Carlo',
+      bpm: '70',
+      favorite: true,
+      lastOpened: Date.now() - 20000,
+      body: `SOL                     RE/FA#
+Hay una mano que conmigo está
+MIm                     RE
+cuando no tengo fuerzas,
+DO                      SOL/SI
+y sin pensarlo me ha de levantar
+LAm7                    RE
+cuando llegan las pruebas.
 
-  const processChordLine = (line) => {
-    return line.replace(
-      /(DO|RE|MI|FA|SOL|LA|SI|Do|Re|Mi|Fa|Sol|La|Si|[A-G])(#|b)?(m|im|maj|dim|aug|sus|add)?[0-9]*(\/(DO|RE|MI|FA|SOL|LA|SI|Do|Re|Mi|Fa|Sol|La|Si|[A-G])(#|b)?[0-9]*)?/g,
-      (full) => full.includes('/') ? full.split('/').map(transposeToken).join('/') : transposeToken(full)
-    );
-  };
+SOL                     RE/FA#
+Hay una mano que ayudó a Moisés
+MIm                     RE
+y el mar lo dividió en dos,
+DO                      SOL/SI
+y es la misma que hoy me acompaña,
+LAm7        RE          SOL
+es la mano de Dios.`,
+    },
+    {
+      id: '1791515587317',
+      title: 'CAMINANDO DESDE ORIENTE',
+      category: 'Iglesia',
+      liturgicalTime: 'NAVIDAD',
+      subcategory: 'ENTRADA',
+      originalKey: 'SOL',
+      artist: 'Tradicional',
+      bpm: '96',
+      favorite: false,
+      lastOpened: Date.now() - 30000,
+      body: `SOL                               RE
+Caminando desde Oriente se acercan ya los Reyes,
+DO                  RE            SOL
+caminando desde Oriente hacia Belén. (2)
 
-  // Subir / Descargar de Firebase
-  const pushToFirebase = async () => {
-    if (!cloudUrl.trim()) return alert('Ingresa la URL de tu base de datos Firebase.');
-    setIsSyncing(true);
-    try {
-      const url = cloudUrl.trim().endsWith('.json') ? cloudUrl.trim() : `${cloudUrl.trim().replace(/\/$/, '')}/cancionero.json`;
-      localStorage.setItem('cancionero_cloud_url', url);
-      setCloudUrl(url);
+SOL                               DO
+Con incienso, oro y mirra quieren hoy adorar
+RE                                SOL
+al Niño que ha nacido en el portal.`,
+    },
+    {
+      id: '1791515587318',
+      title: 'ESTE ES EL MOMENTO',
+      category: 'Iglesia',
+      liturgicalTime: 'ORDINARIO',
+      subcategory: 'OFRENDAS',
+      originalKey: 'FA',
+      artist: 'Liturgia',
+      bpm: '74',
+      favorite: false,
+      lastOpened: Date.now() - 40000,
+      body: `FA                      REm
+Este es el momento de alegrar la mesa
+SIb                     DO
+con el vino y con el pan,
+SOLm                    DO7
+que consagraremos y que ofreceremos
+FA                      DO7
+y que hemos de comulgar.`,
+    },
+    {
+      id: '1791515587319',
+      title: 'JUNTOS NOS ACERCAMOS',
+      category: 'Iglesia',
+      liturgicalTime: 'ORDINARIO',
+      subcategory: 'OFRENDAS',
+      originalKey: 'DO',
+      artist: 'Tradicional',
+      bpm: '76',
+      favorite: false,
+      lastOpened: Date.now() - 50000,
+      body: `DO                  SOL             LAm
+Juntos nos acercamos a esta mesa para ofrecer
+FA                  REm             SOL
+todo lo que tenemos que es para Ti.
+DO                  SOL             LAm
+Es nuestra vida, nuestra esperanza, nuestro dolor y amor,
+FA                  SOL             DO
+deja que nuestras manos lleguen a Ti.`,
+    },
+    {
+      id: '1791515587320',
+      title: 'Te Entrego',
+      category: 'Iglesia',
+      liturgicalTime: 'ORDINARIO',
+      subcategory: 'ADORACIÓN',
+      originalKey: 'SOL',
+      artist: 'Joan Sánchez',
+      bpm: '66',
+      favorite: true,
+      lastOpened: Date.now() - 60000,
+      body: `SOL                 DO
+Haz lo que quieras conmigo,
+SOL                 RE
+haz lo que quieras de mí,
+MIm                 DO
+hoy yo te ofrezco mi vida,
+LAm7                RE
+hoy yo me rindo ante Ti.
 
-      const res = await fetch(url, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ app: 'cancionero', version: 1, exported: new Date().toISOString(), songs })
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setSyncStatus('Sincronizado');
-      alert('¡Repertorio subido a Firebase con éxito!');
-      setIsCloudModalOpen(false);
-    } catch (err) {
-      alert('Error al conectar con Firebase: revisa la URL.');
-    } finally {
-      setIsSyncing(false);
+SOL                 RE/FA#
+Te entrego todo lo que soy, todo lo que tengo,
+MIm                 RE
+todo lo que quiero y todo lo que sueño
+DO                  LAm7            RE
+a Ti Señor Jesús.
+SOL                 RE/FA#
+Te entrego, mi vida y mi corazón
+MIm                 DO              RE          SOL
+para amarte a Ti, mi Señor.`,
+    },
+    {
+      id: '1791515587321',
+      title: 'Venimos a Adorar',
+      category: 'Iglesia',
+      liturgicalTime: 'ORDINARIO',
+      subcategory: 'ADORACIÓN',
+      originalKey: 'RE',
+      artist: 'Ministerio',
+      bpm: '70',
+      favorite: false,
+      lastOpened: Date.now() - 70000,
+      body: `RE                  LA/DO#          SIm
+El Rey del universo y Señor de la creación
+SOL                 MIm             LA
+se viene a hacer presente en medio de nosotros.
+
+RE                  LA/DO#          SIm     SIm/LA
+Venimos a adorar, venimos a cantar
+SOL                 MIm             LA          RE
+al Señor que está en el altar.`,
+    },
+  ],
+};
+
+const load = () => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(KEY) || localStorage.getItem('cancionero_v1') || 'null');
+    if (raw && raw.data && Array.isArray(raw.data.songs) && raw.data.songs.length > 0) {
+      return {
+        data: normData(raw.data),
+        theme: raw.theme || 'nocturno',
+        cloud: String(raw.cloud || DEFAULT_CLOUD),
+      };
     }
-  };
+  } catch { /* storage vacío o corrupto */ }
+  return { data: normData(SEED), theme: 'nocturno', cloud: DEFAULT_CLOUD };
+};
 
-  const pullFromFirebase = async () => {
-    if (!cloudUrl.trim()) return alert('Ingresa la URL de Firebase.');
-    setIsSyncing(true);
-    try {
-      const url = cloudUrl.trim().endsWith('.json') ? cloudUrl.trim() : `${cloudUrl.trim().replace(/\/$/, '')}/cancionero.json`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (data && Array.isArray(data.songs)) {
-        setSongs(data.songs);
-        alert(`¡${data.songs.length} canciones descargadas de Firebase!`);
-        setIsCloudModalOpen(false);
-      } else {
-        alert('La base de datos aún no tiene cantos guardados.');
-      }
-    } catch (err) {
-      alert('Error al descargar desde Firebase.');
-    } finally {
-      setIsSyncing(false);
-    }
-  };
+/* ============ Iconos ============ */
+const PATHS = {
+  home: 'M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
+  list: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
+  gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4 12h2M18 12h2M12 4v2M12 18v2M6.3 6.3l1.4 1.4M16.3 16.3l1.4 1.4M6.3 17.7l1.4-1.4M16.3 7.7l1.4-1.4',
+  plus: 'M12 5v14M5 12h14',
+  star: 'M12 2l3 6.9 7.4.7-5.6 5 1.7 7.3L12 18l-6.5 3.9 1.7-7.3-5.6-5 7.4-.7z',
+  play: 'M6 4l14 8-14 8z',
+  pause: 'M7 4v16M17 4v16',
+  back: 'M15 18l-6-6 6-6',
+  filter: 'M3 5h18l-7 8v6l-4 2v-8z',
+  expand: 'M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3',
+};
+const Icon = ({ n, size = 18, fill = 'none' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d={PATHS[n]} />
+  </svg>
+);
 
-  // Exportar archivo JSON para Google Drive
-  const exportToDriveBackup = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
-      app: 'cancionero',
-      version: 1,
-      exported: new Date().toISOString(),
-      songs
-    }, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `cancionero-respaldo-${new Date().toISOString().slice(0, 10)}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-  };
-
+/* ============ Componentes ============ */
+function Card({ s, onOpen, onFav }) {
   return (
-    <div className="flex min-h-screen relative" style={{ backgroundColor: '#12100E' }}>
-      
-      {/* MARCA DE AGUA: Clave de Sol centrada de fondo idéntica a tu captura */}
-      <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-0 overflow-hidden">
-        <svg 
-          viewBox="0 0 100 160" 
-          className="w-[620px] h-[620px] text-stone-800/25 select-none"
-          fill="currentColor"
-        >
-          <path d="M48 20 C42 20 38 25 38 32 C38 42 46 48 48 55 C50 62 46 68 40 70 C34 72 26 68 26 60 C26 50 34 45 36 40 C37 37 36 35 34 35 C31 35 20 42 20 58 C20 74 32 82 44 82 C46 82 48 81 50 80 L44 125 C40 126 36 128 34 132 C30 138 32 148 40 150 C48 152 56 144 54 135 C53 128 48 124 45 124 L52 75 C58 72 64 66 64 56 C64 42 54 30 48 20 Z" />
-        </svg>
+    <div className="card" role="button" tabIndex={0} data-testid="song-card" aria-label={`Abrir ${s.title}`}
+      onClick={() => onOpen(s.id)} onKeyDown={(e) => e.key === 'Enter' && onOpen(s.id)}>
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <b>{s.title}</b>
+        <button className="ghost" data-testid="fav-btn" aria-label="Favorita" onClick={(e) => onFav(e, s)}
+          style={{ border: 0, padding: 2, color: s.favorite ? 'var(--accent-primary)' : 'var(--mut)' }}>
+          <Icon n="star" fill={s.favorite ? 'currentColor' : 'none'} />
+        </button>
       </div>
-
-      {/* SIDEBAR IZQUIERDO */}
-      <aside className="w-64 border-r border-stone-800/80 p-5 flex flex-col justify-between z-10 shrink-0" style={{ backgroundColor: '#181512' }}>
-        <div className="space-y-6">
-          {/* Logo y Nombre */}
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-stone-100 serif-title">Mi Cancionero</h1>
-            <p className="text-xs text-stone-400 mt-0.5">Atril Litúrgico Digital</p>
-          </div>
-
-          {/* Menú Principal */}
-          <nav className="space-y-1.5">
-            <button
-              onClick={() => { setActiveTab('inicio'); setSelectedSongId(null); }}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all ${
-                activeTab === 'inicio' && !selectedSongId
-                  ? 'bg-[#DF8A65] text-[#12100E] shadow-sm'
-                  : 'text-stone-300 hover:bg-stone-800/60'
-              }`}
-            >
-              <Music className="w-4 h-4" />
-              <span>Inicio</span>
-            </button>
-
-            <button
-              onClick={() => { setActiveTab('repertorios'); setSelectedSongId(null); }}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all ${
-                activeTab === 'repertorios'
-                  ? 'bg-[#DF8A65] text-[#12100E]'
-                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
-              }`}
-            >
-              <BookOpen className="w-4 h-4" />
-              <span>Repertorios</span>
-            </button>
-
-            <button
-              onClick={() => setIsCloudModalOpen(true)}
-              className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-semibold text-stone-400 hover:text-stone-200 hover:bg-stone-800/60 transition-all"
-            >
-              <Cloud className="w-4 h-4" />
-              <span>Ajustes y Drive</span>
-            </button>
-          </nav>
-
-          {/* TIEMPOS LITÚRGICOS */}
-          <div className="pt-2">
-            <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block mb-2 px-1">
-              TIEMPOS LITÚRGICOS
-            </span>
-            <div className="space-y-1">
-              {liturgicalTimes.map(time => (
-                <button
-                  key={time}
-                  onClick={() => { setActiveFilter(time); setSelectedSongId(null); }}
-                  className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${
-                    activeFilter === time ? 'text-[#DF8A65] bg-[#DF8A65]/10 font-bold' : 'text-stone-400 hover:text-stone-200'
-                  }`}
-                >
-                  {time}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Badge inferior de sincronización */}
-        <div 
-          onClick={() => setIsCloudModalOpen(true)}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-stone-900/90 border border-stone-800 text-stone-300 cursor-pointer hover:border-stone-700 transition-colors"
-        >
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span>Drive: {cloudUrl ? 'Sincronizado' : 'Conectar'}</span>
-        </div>
-      </aside>
-
-      {/* ÁREA PRINCIPAL */}
-      <main className="flex-1 p-8 z-10 overflow-y-auto max-h-screen pb-28">
-        
-        {/* VISTA A: DETALLE DEL CANTO (Si se abrió una canción) */}
-        {selectedSong ? (
-          <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-200">
-            <button
-              onClick={() => setSelectedSongId(null)}
-              className="flex items-center gap-2 text-xs font-bold text-stone-400 hover:text-stone-200 mb-2 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" /> Volver al catálogo
-            </button>
-
-            <div className="flex flex-wrap items-start justify-between gap-4 pb-4 border-b border-stone-800">
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-[#DF8A65]/20 text-[#DF8A65]">
-                    {selectedSong.subcategory || selectedSong.category}
-                  </span>
-                  {selectedSong.liturgicalTime && (
-                    <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-stone-800 text-stone-300">
-                      {selectedSong.liturgicalTime}
-                    </span>
-                  )}
-                </div>
-                <h2 className="text-3xl font-extrabold text-stone-100 serif-title">{selectedSong.title}</h2>
-                <p className="text-xs text-stone-400 mt-1">
-                  Tono Original: {selectedSong.originalKey || 'DO'} {selectedSong.artist ? `• ${selectedSong.artist}` : ''}
-                </p>
-              </div>
-
-              {/* Controles de Tono */}
-              <div className="flex items-center gap-2">
-                <div className="flex items-center rounded-xl bg-stone-900 border border-stone-800 text-xs font-bold tabular-nums">
-                  <button onClick={() => setTranspose(t => t - 1)} className="px-3 py-1.5 hover:bg-stone-800">- ½</button>
-                  <span className="px-3 py-1.5 border-x border-stone-800 min-w-[85px] text-center text-[#DF8A65]">
-                    {transpose === 0 ? 'Orig.' : `${transpose > 0 ? '+' : ''}${transpose} semit.`}
-                  </span>
-                  <button onClick={() => setTranspose(t => t + 1)} className="px-3 py-1.5 hover:bg-stone-800">+ ½</button>
-                </div>
-
-                <button
-                  onClick={() => {
-                    const modes = ['original', 'latina', 'americana'];
-                    setNotation(modes[(modes.indexOf(notation) + 1) % modes.length]);
-                  }}
-                  className="px-3 py-1.5 rounded-xl bg-stone-900 border border-stone-800 text-xs font-bold text-stone-300"
-                >
-                  Notación: {notation === 'original' ? 'Orig.' : notation === 'latina' ? 'DO-RE' : 'C-D-E'}
-                </button>
-              </div>
-            </div>
-
-            {/* Letra y Acordes */}
-            <div className="chord-sheet text-base select-text overflow-x-auto leading-relaxed pt-2" style={{ fontSize: `${fontSize}px` }}>
-              {selectedSong.body.split('\n').map((line, i) => {
-                const chord = isChordLine(line);
-                return (
-                  <div key={i} style={{ color: chord ? '#F59E0B' : '#E7E5E4', fontWeight: chord ? 700 : 400 }}>
-                    {chord ? processChordLine(line) : (line || ' ')}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          /* VISTA B: CATÁLOGO LITÚRGICO (Tu pantalla de la captura corregida) */
-          <div className="max-w-5xl mx-auto space-y-8">
-            
-            {/* Header del Catálogo */}
-            <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-extrabold text-stone-100 serif-title">Catálogo Litúrgico</h2>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-stone-900 border border-stone-800 text-xs text-stone-300 font-medium">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>{syncStatus}</span>
-                </div>
-                <button 
-                  onClick={() => alert('Cancionero Digital: Busca cantos, pulsa para ver la letra, cambia de tono y sincroniza en la nube.')}
-                  className="px-4 py-1.5 rounded-xl bg-stone-900/80 border border-stone-800 text-xs text-stone-300 hover:bg-stone-800 transition-colors font-semibold"
-                >
-                  Guía rápida
-                </button>
-              </div>
-            </div>
-
-            {/* Buscador + Filtros */}
-            <div className="flex gap-3">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 absolute left-4 top-3.5 text-stone-500" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar canto por título, letra, acorde o autor..."
-                  className="w-full pl-11 pr-4 py-3 rounded-2xl bg-stone-900/90 border border-stone-800 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-[#DF8A65]/50 transition-colors"
-                />
-              </div>
-              <button 
-                onClick={() => setActiveFilter(activeFilter === 'TODOS' ? 'COMUNIÓN' : 'TODOS')}
-                className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-stone-900/90 border border-stone-800 text-sm font-semibold text-stone-300 hover:bg-stone-800 transition-colors"
-              >
-                <SlidersHorizontal className="w-4 h-4 text-stone-400" />
-                <span>Filtros {activeFilter !== 'TODOS' ? `(${activeFilter})` : ''}</span>
-              </button>
-            </div>
-
-            {/* SECCIÓN 1: RECIENTES */}
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-stone-200 serif-title">Recientes</h3>
-                <span className="text-xs text-stone-500 font-medium">Acceso rápido de atril</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {recentSongs.map(song => (
-                  <div
-                    key={song.id}
-                    onClick={() => openSong(song.id)}
-                    className="p-4 rounded-2xl bg-stone-900/70 border border-stone-800/80 hover:border-[#DF8A65]/50 cursor-pointer transition-all hover:scale-101"
-                  >
-                    <span className="text-[10px] font-bold text-[#DF8A65] uppercase tracking-wider block mb-1">
-                      {song.subcategory || song.category}
-                    </span>
-                    <h4 className="font-bold text-stone-200 text-sm truncate">{song.title}</h4>
-                    <p className="text-[11px] text-stone-500 mt-1">Tono: {song.originalKey || 'DO'}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* SECCIÓN 2: FAVORITAS */}
-            {favoriteSongs.length > 0 && (
-              <section className="space-y-3">
-                <h3 className="text-lg font-bold text-stone-200 serif-title">Favoritas</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {favoriteSongs.map(song => (
-                    <div
-                      key={song.id}
-                      onClick={() => openSong(song.id)}
-                      className="p-4 rounded-2xl bg-stone-900/70 border border-stone-800/80 hover:border-[#DF8A65]/50 cursor-pointer transition-all flex items-center justify-between"
-                    >
-                      <div className="min-w-0">
-                        <span className="text-[10px] font-bold text-[#DF8A65] uppercase block">{song.subcategory || song.category}</span>
-                        <h4 className="font-bold text-stone-200 text-sm truncate">{song.title}</h4>
-                      </div>
-                      <Star className="w-4 h-4 fill-amber-400 text-amber-400 shrink-0 ml-2" />
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* SECCIÓN 3: CATÁLOGO DE CANTOS */}
-            <section className="space-y-3">
-              <h3 className="text-lg font-bold text-stone-200 serif-title">Catálogo de Cantos ({filteredCatalog.length})</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {filteredCatalog.map(song => (
-                  <div
-                    key={song.id}
-                    onClick={() => openSong(song.id)}
-                    className="p-4 rounded-2xl bg-stone-900/60 border border-stone-800/80 hover:border-stone-700 cursor-pointer transition-all flex items-center justify-between group"
-                  >
-                    <div className="min-w-0 pr-2">
-                      <h4 className="font-bold text-stone-200 text-sm truncate group-hover:text-[#DF8A65] transition-colors">
-                        {song.title}
-                      </h4>
-                      <p className="text-xs text-stone-400 mt-1 flex items-center gap-2">
-                        <span className="font-semibold text-stone-300">{song.subcategory || song.category}</span>
-                        {song.liturgicalTime && <span>• {song.liturgicalTime}</span>}
-                        {song.originalKey && <span>• Tono {song.originalKey}</span>}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button 
-                        onClick={(e) => toggleFavorite(song.id, e)}
-                        className="p-1.5 rounded-lg hover:bg-stone-800 text-stone-500 hover:text-amber-400"
-                      >
-                        <Star className={`w-4 h-4 ${song.favorite ? 'fill-amber-400 text-amber-400' : ''}`} />
-                      </button>
-                      <ChevronRight className="w-4 h-4 text-stone-600 group-hover:text-stone-300 transition-colors" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-          </div>
-        )}
-      </main>
-
-      {/* BARRA FLOTANTE INFERIOR: CONTINUAR DONDE QUEDASTE */}
-      {lastSong && !selectedSongId && (
-        <div className="fixed bottom-5 left-72 z-30">
-          <div className="flex items-center gap-4 px-5 py-3 rounded-2xl bg-[#1C1815]/95 border border-stone-800/90 shadow-2xl backdrop-blur-md">
-            <div>
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-stone-400 block">
-                CONTINUAR DONDE QUEDASTE
-              </span>
-              <span className="text-sm font-bold text-stone-100">{lastSong.title}</span>
-            </div>
-            <button
-              onClick={() => openSong(lastSong.id)}
-              className="px-5 py-2 rounded-xl text-xs font-bold bg-[#DF8A65] text-[#12100E] hover:opacity-90 transition-opacity"
-            >
-              Abrir
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* BOTÓN FLOTANTE (FAB) PARA AGREGAR NUEVO CANTO */}
-      <button
-        onClick={() => {
-          const t = prompt('Título del nuevo canto:');
-          if (!t) return;
-          const body = prompt('Pega los acordes y la letra:');
-          if (!body) return;
-          const newSong = {
-            id: Date.now().toString(),
-            title: t.trim(),
-            subcategory: 'ADORACIÓN',
-            liturgicalTime: 'ORDINARIO',
-            originalKey: 'DO',
-            favorite: false,
-            lastOpened: Date.now(),
-            body
-          };
-          setSongs([newSong, ...songs]);
-          openSong(newSong.id);
-        }}
-        className="fixed bottom-6 right-6 z-30 w-12 h-12 rounded-2xl bg-[#DF8A65] text-[#12100E] flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all"
-        title="Nuevo Canto"
-      >
-        <PlusCircle className="w-6 h-6" />
-      </button>
-
-      {/* MODAL: AJUSTES, FIREBASE Y GOOGLE DRIVE */}
-      {isCloudModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-3xl p-6 space-y-5 bg-[#1C1815] border border-stone-800 text-stone-200 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-stone-800 pb-3">
-              <div className="flex items-center gap-2">
-                <Cloud className="w-5 h-5 text-[#DF8A65]" />
-                <h3 className="font-bold text-lg serif-title">Almacenamiento en Línea y Drive</h3>
-              </div>
-              <button onClick={() => setIsCloudModalOpen(false)}><X className="w-5 h-5 text-stone-400" /></button>
-            </div>
-
-            {/* Opción 1: Conexión en Tiempo Real (Firebase) */}
-            <div className="space-y-2">
-              <label className="block text-xs font-bold uppercase text-stone-400">
-                1. URL de Base de Datos Firebase
-              </label>
-              <input
-                type="url"
-                value={cloudUrl}
-                onChange={(e) => setCloudUrl(e.target.value)}
-                placeholder="https://tu-proyecto.firebaseio.com/cancionero.json"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-stone-900 border border-stone-800 text-sm text-stone-100 focus:outline-none focus:border-[#DF8A65]"
-              />
-              <div className="flex gap-2 pt-1">
-                <button
-                  onClick={pushToFirebase}
-                  disabled={isSyncing}
-                  className="px-4 py-2 rounded-xl text-xs font-bold bg-[#DF8A65] text-[#12100E] hover:opacity-90"
-                >
-                  {isSyncing ? 'Sincronizando...' : 'Subir a Firebase'}
-                </button>
-                <button
-                  onClick={pullFromFirebase}
-                  disabled={isSyncing}
-                  className="px-4 py-2 rounded-xl text-xs font-bold bg-stone-800 hover:bg-stone-700 text-stone-200"
-                >
-                  Descargar de Firebase
-                </button>
-              </div>
-            </div>
-
-            {/* Opción 2: Respaldo en Google Drive */}
-            <div className="pt-4 border-t border-stone-800 space-y-2">
-              <label className="block text-xs font-bold uppercase text-stone-400">
-                2. Respaldo para Google Drive
-              </label>
-              <p className="text-xs text-stone-400">
-                Descarga el archivo maestro `.json` con todas tus canciones para guardarlo en tu Google Drive personal o compartirlo con el ministerio.
-              </p>
-              <button
-                onClick={exportToDriveBackup}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-stone-800 hover:bg-stone-700 text-stone-200"
-              >
-                <Download className="w-4 h-4" />
-                <span>Descargar archivo de respaldo JSON</span>
-              </button>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button onClick={() => setIsCloudModalOpen(false)} className="text-xs text-stone-400 hover:text-stone-200">
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      <div className="meta">{s.artist || 'Sin autor'}</div>
+      {[s.liturgicalTime, s.subcategory, s.originalKey && 'Tono ' + s.originalKey, s.bpm && s.bpm + ' BPM']
+        .filter(Boolean).map((t) => <span className="tag" key={t}>{t}</span>)}
     </div>
   );
 }
+
+function Section({ id, title, list, empty, ...cardProps }) {
+  return (
+    <section data-testid={id}>
+      <h2>{title}</h2>
+      {list.length
+        ? <div className="grid">{list.map((s) => <Card key={s.id} s={s} {...cardProps} />)}</div>
+        : <div className="empty">{empty}</div>}
+    </section>
+  );
+}
+
+function SongModal({ init, edit, onSave, onClose, onDelete }) {
+  const [s, setS] = useState(init);
+  const set = (k) => (e) => setS((x) => ({ ...x, [k]: e.target.value }));
+  const field = (k, label) => (
+    <div><label>{label}</label><input data-testid={`field-${k}`} aria-label={label} value={s[k]} onChange={set(k)} /></div>
+  );
+  return (
+    <div className="modal" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="dlg" role="dialog" aria-label="Canto">
+        <h2 style={{ marginTop: 0 }}>{edit ? 'Editar canto' : 'Nuevo canto'}</h2>
+        {field('title', 'Título')}
+        <div className="two">
+          {field('artist', 'Autor')}{field('originalKey', 'Tono original (ej. DO, REm, G)')}{field('bpm', 'BPM')}
+          <div><label>Tiempo litúrgico</label>
+            <select data-testid="field-liturgicalTime" value={s.liturgicalTime} onChange={set('liturgicalTime')}>
+              <option value="">—</option>
+              {[...new Set([...TIEMPOS, s.liturgicalTime])].filter(Boolean).map((t) => <option key={t}>{t}</option>)}
+            </select></div>
+        </div>
+        <label>Momento de la misa</label>
+        <select data-testid="field-subcategory" value={s.subcategory} onChange={set('subcategory')}>
+          <option value="">—</option>
+          {[...new Set([...MOMENTOS, s.subcategory])].filter(Boolean).map((t) => <option key={t}>{t}</option>)}
+        </select>
+        <label>Letra y acordes (los acordes van en su propia línea sobre la letra)</label>
+        <textarea data-testid="field-body" aria-label="Letra y acordes" value={s.body} onChange={set('body')} />
+        <label>Notas de interpretación / cejilla</label>
+        <input data-testid="field-notes" aria-label="Notas" value={s.notes} onChange={set('notes')} />
+        <div className="row" style={{ marginTop: 16, justifyContent: 'flex-end' }}>
+          {edit && <button className="ghost" style={{ marginRight: 'auto', color: '#EF4444' }} onClick={() => onDelete(s.id)}>Eliminar</button>}
+          <button className="ghost" onClick={onClose}>Cancelar</button>
+          <button className="primary" data-testid="save-song" onClick={() => onSave(s)}>Guardar canto</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============ App ============ */
+export default function App() {
+  const boot = useRef(null);
+  if (!boot.current) boot.current = load();
+  const [D, setD] = useState(boot.current.data);
+  const [theme, setTheme] = useState(boot.current.theme);
+  const [cloud, setCloud] = useState(boot.current.cloud);
+  const [view, setView] = useState('inicio');
+  const [openId, setOpenId] = useState(null);
+  const [f, setF] = useState({ q: '', time: '', moment: '', fav: false, show: false });
+  const [modal, setModal] = useState(null);
+  const [rd, setRd] = useState({ steps: 0, mode: 'orig', fs: 17, auto: false, speed: 2, stage: false });
+  const [sync, setSync] = useState('local');
+  const [toasts, setToasts] = useState([]);
+  const [backup, setBackup] = useState('');
+  const main = useRef(null);
+
+  useLayoutEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try { localStorage.setItem(KEY, JSON.stringify({ data: D, theme, cloud })); } catch { /* sin almacenamiento */ }
+  }, [D, theme, cloud]);
+
+  useEffect(() => {
+    if (!rd.auto || view !== 'lector') return;
+    const i = setInterval(() => { if (main.current) main.current.scrollTop += rd.speed * 0.5; }, 40);
+    return () => clearInterval(i);
+  }, [rd.auto, rd.speed, view]);
+
+  const toast = (t) => {
+    const id = Math.random();
+    setToasts((x) => [...x, { id, t }]);
+    setTimeout(() => setToasts((x) => x.filter((y) => y.id !== id)), 2600);
+  };
+  const patchSong = (id, p) => setD((d) => ({ ...d, songs: d.songs.map((s) => (s.id === id ? { ...s, ...p } : s)) }));
+  const go = (v) => { setView(v); setOpenId(null); setRd((r) => ({ ...r, auto: false, stage: false })); };
+  const openSong = (id) => {
+    patchSong(id, { lastOpened: Date.now() });
+    setOpenId(id); setView('lector');
+    setRd((r) => ({ ...r, steps: 0, mode: 'orig', auto: false }));
+    if (main.current) main.current.scrollTop = 0;
+  };
+  const toggleFav = (e, s) => { e.stopPropagation(); patchSong(s.id, { favorite: !s.favorite }); };
+  const saveSong = (s) => {
+    const n = normSong({ ...s, title: s.title.trim() });
+    setD((d) => ({ ...d, songs: d.songs.some((x) => x.id === n.id) ? d.songs.map((x) => (x.id === n.id ? n : x)) : [n, ...d.songs] }));
+    setModal(null); toast('Canto guardado');
+  };
+  const delSong = (id) => {
+    if (!window.confirm('¿Eliminar este canto?')) return;
+    setD((d) => ({ ...d, songs: d.songs.filter((s) => s.id !== id), setlists: d.setlists.map((l) => ({ ...l, songIds: l.songIds.filter((x) => x !== id) })) }));
+    setModal(null); go('inicio'); toast('Canto eliminado');
+  };
+  const patchList = (id, fn) => setD((d) => ({ ...d, setlists: d.setlists.map((l) => (l.id === id ? { ...l, songIds: fn(l.songIds) } : l)) }));
+  const moveInList = (lid, sid, dir) => patchList(lid, (ids) => {
+    const i = ids.indexOf(sid), j = i + dir;
+    if (i < 0 || j < 0 || j >= ids.length) return ids;
+    const c = [...ids]; [c[i], c[j]] = [c[j], c[i]]; return c;
+  });
+  const newList = () => {
+    const name = window.prompt('Nombre del repertorio (ej. Misa Domingo 10 AM)');
+    if (name && name.trim()) setD((d) => ({ ...d, setlists: [...d.setlists, { id: String(Date.now()), name: name.trim(), songIds: [] }] }));
+  };
+
+  // Nube (Firebase Realtime DB)
+  const pushToCloud = async () => {
+    const endpoint = normalizeCloudUrl(cloud);
+    if (!endpoint) return toast('Escribe primero la URL de Firebase');
+    setCloud(endpoint);
+    setSync('busy');
+    try {
+      const r = await fetch(endpoint, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...D, exported: new Date().toISOString() }) });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      setSync('ok'); toast('Subido a Firebase correctamente');
+    } catch (e) { setSync('err'); toast('No se pudo subir: ' + (e.message || 'error de red')); }
+  };
+
+  const pullFromCloud = async () => {
+    const endpoint = normalizeCloudUrl(cloud);
+    if (!endpoint) return toast('Escribe primero la URL de Firebase');
+    setCloud(endpoint);
+    setSync('busy');
+    try {
+      const r = await fetch(endpoint);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = normData(await r.json());
+      if (!d.songs.length && !d.setlists.length) throw new Error('la nube está vacía');
+      setD(d); setSync('ok'); toast(`Descargados ${d.songs.length} cantos de Firebase`);
+    } catch (e) { setSync('err'); toast('No se pudo descargar: ' + (e.message || 'error de red')); }
+  };
+
+  const doImport = (txt) => {
+    try {
+      const d = normData(JSON.parse(txt));
+      if (!d.songs.length && !d.setlists.length) throw new Error('vacío');
+      setD(d); toast(`Importados ${d.songs.length} cantos`);
+    } catch { toast('El respaldo no es válido'); }
+  };
+
+  const doExport = () => {
+    const j = JSON.stringify({ ...D, exported: new Date().toISOString() }, null, 2);
+    setBackup(j);
+    try {
+      const u = URL.createObjectURL(new Blob([j], { type: 'application/json' }));
+      const a = document.createElement('a');
+      a.href = u; a.download = 'cancionero-respaldo.json';
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(u), 1000);
+    } catch { /* el texto queda en el cuadro */ }
+    navigator.clipboard?.writeText(j).then(() => toast('Respaldo copiado'), () => toast('Respaldo generado'));
+  };
+
+  /* ---- derivados ---- */
+  const q = norm(f.q);
+  const all = D.songs.filter((s) =>
+    (!f.time || s.liturgicalTime === f.time) && (!f.moment || s.subcategory === f.moment) && (!f.fav || s.favorite) &&
+    (!q || [s.title, s.body, s.subcategory, s.liturgicalTime, s.originalKey, s.artist].some((x) => norm(x).includes(q))));
+  const recent = all.filter((s) => s.lastOpened).sort((a, b) => b.lastOpened - a.lastOpened).slice(0, 6);
+  const favs = all.filter((s) => s.favorite);
+  const last = [...D.songs].filter((s) => s.lastOpened).sort((a, b) => b.lastOpened - a.lastOpened)[0];
+  const times = [...new Set([...TIEMPOS, ...D.songs.map((s) => s.liturgicalTime)])].filter(Boolean);
+  const moments = [...new Set([...MOMENTOS, ...D.songs.map((s) => s.subcategory)])].filter(Boolean);
+  const keys = [...new Set(D.songs.map((s) => s.originalKey).filter(Boolean))];
+  const song = D.songs.find((s) => s.id === openId);
+  const cardProps = { onOpen: openSong, onFav: toggleFav };
+
+  // Calcula el tono transpuesto del canto abierto
+  const currentKeyLabel = song && song.originalKey
+    ? (rd.steps !== 0 || rd.mode !== 'orig'
+        ? `Tono ${song.originalKey} → ${fmtChord(song.originalKey, rd.steps, rd.mode)}`
+        : `Tono ${song.originalKey}`)
+    : '';
+
+  const filBtn = (field, v) => (
+    <button key={v} className={'fil' + (f[field] === v ? ' on' : '')}
+      onClick={() => { setF({ ...f, [field]: f[field] === v ? '' : v }); setView('inicio'); setOpenId(null); }}>
+      <span>{v[0] + v.slice(1).toLowerCase()}</span>
+      <span>{D.songs.filter((s) => s[field === 'time' ? 'liturgicalTime' : 'subcategory'] === v).length}</span>
+    </button>
+  );
+
+  const nav = (v, icon, label) => (
+    <button className={'nav' + ((view === v || (v === 'inicio' && view === 'lector')) ? ' on' : '')} onClick={() => go(v)}>
+      <Icon n={icon} />{label}
+    </button>
+  );
+
+  /* ---- vistas ---- */
+  const inicio = (
+    <>
+      <div className="head">
+        <h1>Catálogo Litúrgico</h1>
+        <span className="badge" data-testid="sync-badge">{BADGE_TXT[sync]}</span>
+        <span style={{ flex: 1 }} />
+        <button className="ghost" onClick={pullFromCloud}>Descargar de Firebase</button>
+        <button className="ghost" onClick={() => window.alert('1. Toca + para crear un canto.\n2. Escribe los acordes en una línea sobre la letra.\n3. En el atril usa − ½ y + ½ para transponer.\n4. Auto-scroll desplaza la letra mientras tocas.')}>Guía rápida</button>
+      </div>
+      <div className="search">
+        <input type="search" data-testid="search-input" aria-label="Buscar" placeholder="Buscar por título, letra, tiempo, tono o autor"
+          value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} />
+        <button className="ghost row" onClick={() => setF({ ...f, show: !f.show })}><Icon n="filter" size={16} />Filtros</button>
+      </div>
+      {f.show && (
+        <div className="chips">
+          <button className={'chip' + (f.fav ? ' on' : '')} onClick={() => setF({ ...f, fav: !f.fav })}>Solo favoritas</button>
+          {keys.map((k) => (
+            <button key={k} className={'chip' + (norm(f.q) === norm(k) ? ' on' : '')}
+              onClick={() => setF({ ...f, q: norm(f.q) === norm(k) ? '' : k })}>Tono {k}</button>
+          ))}
+          {(f.time || f.moment || f.fav || f.q) && <button className="chip" onClick={() => setF({ ...f, q: '', time: '', moment: '', fav: false })}>Limpiar</button>}
+        </div>
+      )}
+      <Section id="sec-recientes" title="Recientes" list={recent} empty="Los cantos que abras aparecerán aquí." {...cardProps} />
+      <Section id="sec-favoritas" title="Favoritas" list={favs} empty="Marca la estrella de un canto para tenerlo a mano." {...cardProps} />
+      <Section id="sec-catalogo" title={<>Catálogo de cantos <span style={{ font: '14px Inter,sans-serif', color: 'var(--mut)' }}>({all.length})</span></>}
+        list={all} empty={D.songs.length ? 'Ningún canto coincide con la búsqueda.' : 'Aún no hay cantos. Crea uno con el botón +.'} {...cardProps} />
+    </>
+  );
+
+  const lector = !song ? <p>Canto no encontrado.</p> : (
+    <>
+      <div className="tools">
+        <div className="row">
+          <button className="ghost row" onClick={() => go('inicio')}><Icon n="back" size={16} />Catálogo</button>
+          <button className="ghost" data-testid="fav-toggle" aria-label="Favorita" onClick={(e) => toggleFav(e, song)}
+            style={{ color: song.favorite ? 'var(--accent-primary)' : 'var(--mut)' }}><Icon n="star" fill={song.favorite ? 'currentColor' : 'none'} /></button>
+          <button className="ghost" data-testid="edit-song" onClick={() => setModal({ edit: true, song })}>Editar</button>
+          <button className={'ghost row' + (rd.stage ? ' primary' : '')} title="Modo Atril Completo" onClick={() => setRd({ ...rd, stage: !rd.stage })}>
+            <Icon n="expand" size={16} />{rd.stage ? 'Salir de Atril' : 'Modo Atril'}
+          </button>
+          <span style={{ flex: 1 }} />
+          <button className="ghost" data-testid="transpose-down" aria-label="Bajar medio tono" onClick={() => setRd({ ...rd, steps: ((rd.steps - 1 + 18) % 12) - 6 })}>− ½</button>
+          <span className="val" data-testid="transpose-value" title="Semitonos">{rd.steps > 0 ? '+' + rd.steps : rd.steps}</span>
+          <button className="ghost" data-testid="transpose-up" aria-label="Subir medio tono" onClick={() => setRd({ ...rd, steps: ((rd.steps + 1 + 18) % 12) - 6 })}>+ ½</button>
+          {rd.steps !== 0 && <button className="ghost" onClick={() => setRd({ ...rd, steps: 0 })}>0</button>}
+          <select data-testid="notation-select" aria-label="Notación" value={rd.mode} onChange={(e) => setRd({ ...rd, mode: e.target.value })}>
+            <option value="orig">Original</option><option value="lat">DO-RE-MI</option><option value="am">C-D-E</option>
+          </select>
+        </div>
+        <div className="row" style={{ marginTop: 8 }}>
+          <button className="ghost" aria-label="Reducir letra" onClick={() => setRd({ ...rd, fs: Math.max(11, rd.fs - 2) })}>A−</button>
+          <span className="val">{rd.fs}</span>
+          <button className="ghost" aria-label="Aumentar letra" onClick={() => setRd({ ...rd, fs: Math.min(40, rd.fs + 2) })}>A+</button>
+          <span style={{ flex: 1 }} />
+          <button className={(rd.auto ? 'primary' : 'ghost') + ' row'} onClick={() => setRd({ ...rd, auto: !rd.auto })}>
+            <Icon n={rd.auto ? 'pause' : 'play'} size={14} />Auto-scroll</button>
+          <label className="row" style={{ color: 'var(--mut)', fontSize: 13 }}>Velocidad
+            <input type="range" min="1" max="8" value={rd.speed} style={{ width: 90 }} onChange={(e) => setRd({ ...rd, speed: +e.target.value })} /></label>
+        </div>
+      </div>
+      <h1>{song.title}</h1>
+      <div className="meta" style={{ marginBottom: 18 }}>
+        {[song.artist, currentKeyLabel, song.bpm && song.bpm + ' BPM', song.liturgicalTime, song.subcategory].filter(Boolean).join(' · ')}
+      </div>
+      {song.notes && <p className="meta">{song.notes}</p>}
+      <pre className="body" data-testid="song-body" style={{ '--fs': rd.fs + 'px' }}>
+        {song.body.split('\n').map((l, i) => (
+          <span key={i} className={isChordLine(l) ? 'ch' : undefined}>{isChordLine(l) ? convLine(l, rd.steps, rd.mode) : l}{'\n'}</span>
+        ))}
+      </pre>
+    </>
+  );
+
+  const sets = (
+    <>
+      <div className="head"><h1>Repertorios</h1><span style={{ flex: 1 }} /><button className="primary" onClick={newList}>Nuevo repertorio</button></div>
+      {!D.setlists.length && <p className="empty" style={{ marginTop: 20 }}>Crea un repertorio para ordenar los cantos de una celebración.</p>}
+      {D.setlists.map((l) => {
+        const items = l.songIds.map((id) => D.songs.find((s) => s.id === id)).filter(Boolean);
+        return (
+          <div key={l.id}>
+            <h2>{l.name}</h2>
+            <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 10 }}>
+              {items.map((s, i) => (
+                <li className="row" key={s.id} data-testid="setlist-item">
+                  <span className="val">{i + 1}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}><Card s={s} {...cardProps} /></div>
+                  <button className="ghost" data-testid="move-up" aria-label={`Subir ${s.title}`} disabled={i === 0} onClick={() => moveInList(l.id, s.id, -1)}>↑</button>
+                  <button className="ghost" data-testid="move-down" aria-label={`Bajar ${s.title}`} disabled={i === items.length - 1} onClick={() => moveInList(l.id, s.id, 1)}>↓</button>
+                  <button className="ghost" data-testid="remove-from-setlist" aria-label={`Quitar ${s.title}`} onClick={() => patchList(l.id, (ids) => ids.filter((x) => x !== s.id))}>✕</button>
+                </li>
+              ))}
+            </ol>
+            {!items.length && <div className="empty">Repertorio vacío.</div>}
+            <SetlistAdder songs={D.songs} onAdd={(sid) => patchList(l.id, (ids) => (ids.includes(sid) ? ids : [...ids, sid]))}
+              onDelete={() => window.confirm('¿Eliminar este repertorio?') && setD((d) => ({ ...d, setlists: d.setlists.filter((x) => x.id !== l.id) }))} />
+          </div>
+        );
+      })}
+    </>
+  );
+
+  const ajustes = (
+    <>
+      <h1>Ajustes y respaldo</h1>
+      <h2>Tema</h2>
+      <div className="themes">
+        {THEMES.map(([id, name, desc]) => (
+          <button key={id} className="card" style={theme === id ? { borderColor: 'var(--accent-primary)' } : undefined}
+            onClick={() => { setTheme(id); toast('Tema aplicado'); }}><b>{name}</b><div className="meta">{desc}</div></button>
+        ))}
+      </div>
+      <h2>Nube (Firebase Realtime Database)</h2>
+      <p className="meta">Enlace de tu base de datos en tiempo real para sincronizar entre el computador, tablet y celular:</p>
+      <input className="ta" data-testid="cloud-url" aria-label="URL de la nube" placeholder="https://mi-cancionero-6d816-default-rtdb.firebaseio.com/cancionero.json"
+        value={cloud} onChange={(e) => setCloud(e.target.value.trim())} />
+      <div className="row" style={{ marginTop: 10 }}>
+        <button className="primary" data-testid="push-cloud" onClick={pushToCloud}>Subir a Firebase</button>
+        <button data-testid="pull-cloud" onClick={pullFromCloud}>Descargar de Firebase</button>
+      </div>
+      <h2>Respaldo en archivo JSON</h2>
+      <p className="meta">También puedes exportar o restaurar tus cantos mediante un archivo JSON local.</p>
+      <textarea className="ta" rows={9} data-testid="backup-text" aria-label="Respaldo JSON" placeholder="Respaldo JSON"
+        style={{ font: "13px 'JetBrains Mono',monospace" }} value={backup} onChange={(e) => setBackup(e.target.value)} />
+      <div className="row" style={{ marginTop: 10 }}>
+        <button className="primary" data-testid="export-btn" onClick={doExport}>Exportar respaldo</button>
+        <button data-testid="import-btn" onClick={() => doImport(backup)}>Importar desde el texto</button>
+        <input type="file" accept=".json,application/json" data-testid="import-file" aria-label="Importar archivo JSON"
+          onChange={(e) => { const file = e.target.files[0]; if (file) { const r = new FileReader(); r.onload = () => doImport(String(r.result)); r.readAsText(file); } }} />
+      </div>
+    </>
+  );
+
+  return (
+    <>
+      <style>{CSS}</style>
+      <div className={'app' + (rd.stage && view === 'lector' ? ' stage' : '')}>
+        {!(rd.stage && view === 'lector') && (
+          <aside>
+            <h1 className="brand">Mi Cancionero</h1>
+            <p className="sub">Atril Litúrgico Digital</p>
+            {nav('inicio', 'home', 'Inicio')}{nav('sets', 'list', 'Repertorios')}{nav('ajustes', 'gear', 'Ajustes y nube')}
+            <div className="sidefil">
+              <div className="sec">TIEMPOS LITÚRGICOS</div>{times.map((t) => filBtn('time', t))}
+              <div className="sec">MOMENTOS</div>{moments.map((t) => filBtn('moment', t))}
+            </div>
+            <div className="sync">
+              <span className="dot" style={sync === 'err' ? { background: '#EF4444', animation: 'none' } : undefined} />
+              <span data-testid="sync-status">{SYNC_TXT[sync]}</span>
+            </div>
+          </aside>
+        )}
+        <main ref={main}>
+          <svg className="mark" viewBox="0 0 100 200" fill="currentColor" aria-hidden="true">
+            <path d="M52 8c-14 14-18 34-12 54 4 12 12 22 20 32 12 14 14 30 4 40-10 9-26 6-30-6-3-9 2-18 11-20 7-1 12 4 11 10-1 4-5 6-8 4 2 6 12 4 14-4 2-9-5-16-14-14-14 3-20 18-14 31 7 14 26 18 40 8 16-12 14-36 2-50-10-12-18-22-18-36 0-12 6-22 12-30 4-6 3-12-2-17-4-4-9-4-14-2z" />
+          </svg>
+          {view === 'lector' ? lector : view === 'sets' ? sets : view === 'ajustes' ? ajustes : inicio}
+          {view !== 'lector' && last && (
+            <div className="cont">
+              <div style={{ flex: 1, minWidth: 0 }}><small>CONTINUAR DONDE QUEDASTE</small><b>{last.title}</b></div>
+              <button className="primary" onClick={() => openSong(last.id)}>Abrir</button>
+            </div>
+          )}
+          {view !== 'lector' && (
+            <button className="primary fab" data-testid="fab-new" aria-label="Nuevo canto" onClick={() => setModal({ edit: false, song: normSong({ id: String(Date.now()) }) })}>
+              <Icon n="plus" size={24} />
+            </button>
+          )}
+        </main>
+      </div>
+      {modal && <SongModal key={modal.song.id} init={modal.song} edit={modal.edit} onSave={saveSong} onClose={() => setModal(null)} onDelete={delSong} />}
+      <div id="toasts" aria-live="polite">{toasts.map((x) => <div className="toast" key={x.id}>{x.t}</div>)}</div>
+    </>
+  );
+}
+
+function SetlistAdder({ songs, onAdd, onDelete }) {
+  const [sel, setSel] = useState('');
+  const value = sel || (songs[0] && songs[0].id) || '';
+  return (
+    <div className="row" style={{ marginTop: 10 }}>
+      <select data-testid="setlist-select" aria-label="Canto a añadir" value={value} onChange={(e) => setSel(e.target.value)}>
+        {songs.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+      </select>
+      <button data-testid="add-to-setlist" onClick={() => value && onAdd(value)}>Añadir canto</button>
+      <button className="ghost" onClick={onDelete}>Eliminar</button>
+    </div>
+  );
+}
+
+/* ============ Estilos (tokens semánticos + 4 temas) ============ */
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap');
+:root{--bg-app:#12100E;--bg-panel:#1A1714;--bd:rgba(255,255,255,.07);--bd2:rgba(255,255,255,.1);--tx:#EDE6DD;--mut:#9A8F84;--accent-primary:#DF8A65;--ink:#12100E;--chord:#DF8A65;--ok:#10B981;--r:14px;--ri:8px;--ease:cubic-bezier(.22,1,.36,1);color-scheme:dark}
+:root[data-theme=escenario]{--bg-app:#090D16;--bg-panel:#0F1524;--accent-primary:#FBBF24;--chord:#FBBF24;--ink:#090D16;--tx:#E8ECF4;--mut:#8792A8}
+:root[data-theme=misal]{--bg-app:#FAF6F0;--bg-panel:#F2EBDF;--bd:rgba(60,40,20,.12);--bd2:rgba(60,40,20,.18);--tx:#2A211A;--mut:#7A6A5A;--accent-primary:#991B1B;--ink:#fff;--chord:#991B1B;color-scheme:light}
+:root[data-theme=estudio]{--bg-app:#F1F5F9;--bg-panel:#fff;--bd:rgba(15,23,42,.1);--bd2:rgba(15,23,42,.16);--tx:#0F172A;--mut:#64748B;--accent-primary:#4F46E5;--ink:#fff;--chord:#4F46E5;color-scheme:light}
+*,*::before,*::after{box-sizing:border-box}
+html,body,#root{height:100%;margin:0}
+body{background:var(--bg-app);color:var(--tx);font:15px/1.5 Inter,system-ui,sans-serif;font-variant-numeric:tabular-nums;overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--bd2);background:transparent;border-radius:var(--ri);padding:8px 14px;transition:transform 150ms var(--ease),background 150ms var(--ease)}
+button:active{transform:scale(.97)}
+button:disabled{opacity:.35;cursor:default}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent-primary);outline-offset:2px}
+.primary{background:var(--accent-primary);color:var(--ink);border-color:transparent;font-weight:600}
+.ghost:hover{background:var(--bd)}
+.app{display:grid;grid-template-columns:260px 1fr;height:100%}
+.app.stage{grid-template-columns:1fr}
+aside{background:var(--bg-panel);border-right:1px solid var(--bd);padding:22px 16px;display:flex;flex-direction:column;gap:6px;overflow-y:auto}
+.brand{font:700 24px/1.1 'Playfair Display',Georgia,serif;margin:0}
+.sub{color:var(--mut);font-size:13px;margin:2px 0 18px}
+.nav{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;padding:10px 12px}
+.nav.on{background:var(--accent-primary);color:var(--ink);font-weight:600}
+.sec{color:var(--mut);font-size:12px;margin:18px 12px 4px;letter-spacing:.04em}
+.fil{display:flex;justify-content:space-between;width:100%;border:0;text-align:left;padding:7px 12px;color:var(--mut)}
+.fil.on{color:var(--tx);background:var(--bd)}
+.sync{margin-top:auto;padding:12px;font-size:13px;color:var(--mut);display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);animation:pulse 2s infinite}
+@keyframes pulse{50%{opacity:.35}}
+main{position:relative;overflow-y:auto;padding:26px clamp(16px,4vw,40px) 140px}
+.mark{position:fixed;right:-4%;top:12%;width:min(60vw,420px);height:min(70vh,520px);opacity:.03;pointer-events:none;color:var(--tx);z-index:0}
+h1,h2{font-family:'Playfair Display',Georgia,serif;font-weight:700;margin:0}
+h1{font-size:32px}h2{font-size:22px;margin:30px 0 12px}
+.head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.badge{font-size:12px;color:var(--ok);border:1px solid color-mix(in srgb,var(--ok) 40%,transparent);border-radius:99px;padding:2px 10px}
+.search{display:flex;gap:10px;margin:18px 0 6px}
+.search input{flex:1;background:var(--bg-panel);border:1px solid var(--bd2);border-radius:var(--ri);padding:11px 14px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.chip{border-radius:99px;padding:4px 12px;font-size:13px}
+.chip.on{background:var(--accent-primary);color:var(--ink);border-color:transparent}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.card{background:var(--bg-panel);border:1px solid var(--bd);border-radius:var(--r);padding:16px;text-align:left;display:block;width:100%;cursor:pointer}
+.card:hover{border-color:var(--bd2)}
+.card b{font:700 17px/1.25 'Playfair Display',Georgia,serif;display:block}
+.meta{color:var(--mut);font-size:13px;margin-top:6px}
+.tag{display:inline-block;border:1px solid var(--bd2);border-radius:99px;padding:0 8px;font-size:12px;margin:8px 6px 0 0;color:var(--mut)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.fab{position:fixed;right:24px;bottom:24px;width:56px;height:56px;border-radius:50%;padding:0;display:grid;place-items:center;z-index:20}
+.cont{position:fixed;left:284px;right:96px;bottom:20px;max-width:460px;background:var(--bg-panel);border:1px solid var(--bd2);border-radius:var(--r);padding:10px 12px 10px 16px;display:flex;align-items:center;gap:12px;z-index:15}
+.cont small{display:block;color:var(--mut);font-size:11px;letter-spacing:.06em}
+.cont b{font-family:'Playfair Display',Georgia,serif}
+.tools{position:sticky;top:-26px;z-index:5;background:var(--bg-app);padding:10px 0;border-bottom:1px solid var(--bd);margin-bottom:14px}
+.val{min-width:34px;text-align:center;font-weight:600}
+pre.body{font:400 var(--fs,16px)/1.6 'JetBrains Mono',ui-monospace,monospace;white-space:pre-wrap;margin:0}
+.ch{color:var(--chord);font-weight:600}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:grid;place-items:center;z-index:40;padding:16px;animation:fade 180ms var(--ease)}
+@keyframes fade{from{opacity:0}}
+.dlg{background:var(--bg-panel);border:1px solid var(--bd2);border-radius:20px;padding:22px;width:min(560px,100%);max-height:90%;overflow:auto;animation:up 220ms var(--ease)}
+@keyframes up{from{transform:translateY(12px);opacity:0}}
+.dlg label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
+.dlg input,.dlg select,.dlg textarea,.ta{width:100%;background:var(--bg-app);border:1px solid var(--bd2);border-radius:var(--ri);padding:9px 12px}
+.dlg textarea{font-family:'JetBrains Mono',monospace;font-size:13px;min-height:160px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#toasts{position:fixed;right:20px;bottom:96px;display:flex;flex-direction:column;gap:8px;z-index:60}
+.toast{background:var(--bg-panel);border:1px solid var(--bd2);border-radius:var(--ri);padding:10px 14px;animation:up 220ms var(--ease)}
+.themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.empty{color:var(--mut);padding:18px;border:1px dashed var(--bd2);border-radius:var(--r)}
+@media(max-width:820px){.app{grid-template-columns:1fr;grid-template-rows:auto 1fr}aside{flex-direction:row;flex-wrap:wrap;align-items:center;border-right:0;border-bottom:1px solid var(--bd);padding:10px}.brand,.sub,.sec,.sync,.sidefil{display:none}.nav{width:auto}.cont{left:12px;right:84px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+`;
