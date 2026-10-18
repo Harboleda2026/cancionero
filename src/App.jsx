@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 
-/* ============ Constantes, Liturgia Automática e i18n ============ */
+/* ============ Constantes, Liturgia e i18n ============ */
 const KEY = 'cancionero_cloud_v1';
 const DEFAULT_CLOUD = 'https://mi-cancionero-6d816-default-rtdb.firebaseio.com/cancionero.json';
 
@@ -23,66 +23,34 @@ const THEMES = [
 
 const I18N = {
   es: {
-    brand: 'Mi Cancionero',
-    sub: 'Atril Litúrgico Digital',
-    home: 'Catálogo',
-    sets: 'Repertorios',
-    settings: 'Ajustes y Nube',
-    catalogTitle: 'Catálogo Litúrgico',
-    recent: 'Recientes',
-    favs: 'Favoritas',
-    allSongs: 'Catálogo de cantos',
-    searchPlaceholder: 'Buscar por título, letra, tiempo, tono o autor...',
-    filters: 'Filtros',
-    onlyFavs: 'Solo favoritas',
-    clear: 'Limpiar',
-    liturgicalTimes: 'TIEMPOS LITÚRGICOS',
-    massMoments: 'MOMENTOS DE LA MISA',
-    continueWhere: 'CONTINUAR DONDE QUEDASTE',
-    open: 'Abrir',
-    playSetlist: 'Iniciar Misa (Modo Atril)',
-    newSetlist: 'Nuevo repertorio',
-    guide: 'Guía rápida',
-    seasonBanner: 'Tiempo litúrgico actual sugerido:',
-    filterSeason: 'Ver cantos de este tiempo',
+    brand: 'Mi Cancionero', sub: 'Atril Litúrgico Digital', home: 'Catálogo', sets: 'Repertorios',
+    settings: 'Ajustes y Nube', catalogTitle: 'Catálogo Litúrgico', recent: 'Recientes', favs: 'Favoritas',
+    allSongs: 'Catálogo de cantos', searchPlaceholder: 'Buscar por título, letra, tiempo, tono o autor...',
+    filters: 'Filtros', onlyFavs: 'Solo favoritas', clear: 'Limpiar', liturgicalTimes: 'TIEMPOS LITÚRGICOS',
+    massMoments: 'MOMENTOS DE LA MISA', continueWhere: 'CONTINUAR DONDE QUEDASTE', open: 'Abrir',
+    playSetlist: 'Iniciar Misa', newSetlist: 'Nuevo repertorio', guide: 'Guía rápida',
+    seasonBanner: 'Tiempo litúrgico actual sugerido:', filterSeason: 'Ver cantos del tiempo',
   },
   en: {
-    brand: 'My Songbook',
-    sub: 'Digital Liturgical Stand',
-    home: 'Catalog',
-    sets: 'Setlists',
-    settings: 'Settings & Cloud',
-    catalogTitle: 'Liturgical Catalog',
-    recent: 'Recent',
-    favs: 'Favorites',
-    allSongs: 'Song Catalog',
-    searchPlaceholder: 'Search by title, lyrics, season, key or artist...',
-    filters: 'Filters',
-    onlyFavs: 'Favorites only',
-    clear: 'Clear',
-    liturgicalTimes: 'LITURGICAL SEASONS',
-    massMoments: 'MASS PARTS',
-    continueWhere: 'CONTINUE WHERE YOU LEFT OFF',
-    open: 'Open',
-    playSetlist: 'Start Mass (Live Player)',
-    newSetlist: 'New Setlist',
-    guide: 'Quick Guide',
-    seasonBanner: 'Current suggested liturgical season:',
-    filterSeason: 'Filter season songs',
+    brand: 'My Songbook', sub: 'Digital Liturgical Stand', home: 'Catalog', sets: 'Setlists',
+    settings: 'Settings & Cloud', catalogTitle: 'Liturgical Catalog', recent: 'Recent', favs: 'Favorites',
+    allSongs: 'Song Catalog', searchPlaceholder: 'Search by title, lyrics, season, key or artist...',
+    filters: 'Filters', onlyFavs: 'Favorites only', clear: 'Clear', liturgicalTimes: 'LITURGICAL SEASONS',
+    massMoments: 'MASS PARTS', continueWhere: 'CONTINUE WHERE YOU LEFT OFF', open: 'Open',
+    playSetlist: 'Start Mass', newSetlist: 'New Setlist', guide: 'Quick Guide',
+    seasonBanner: 'Current suggested season:', filterSeason: 'Filter season songs',
   }
 };
 
 const SYNC_TXT = { local:'Local: guardado', busy:'Sincronizando…', ok:'Nube: Sincronizada', err:'Error de sincronización' };
 const BADGE_TXT = { local:'Guardado local', busy:'Sincronizando…', ok:'Sincronizado', err:'Error de nube' };
 
-// Motor de Calendario Litúrgico (adaptado de src/lib/liturgy.js)
 function getCurrentLiturgicalSeason(date = new Date()) {
   const y = date.getFullYear();
   const m = date.getMonth() + 1;
   const d = date.getDate();
   if ((m === 12 && d >= 25) || (m === 1 && d <= 12)) return { key: 'NAVIDAD', color: '#FBBF24', label: 'Tiempo de Navidad' };
-  if (m === 11 && d >= 27 || (m === 12 && d <= 24)) return { key: 'ADVIENTO', color: '#A855F7', label: 'Tiempo de Adviento' };
-  // Cálculo de Pascua (Algoritmo de Butcher-Meeus)
+  if ((m === 11 && d >= 27) || (m === 12 && d <= 24)) return { key: 'ADVIENTO', color: '#A855F7', label: 'Tiempo de Adviento' };
   const a = y % 19, b = Math.floor(y / 100), c = y % 100;
   const d1 = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
   const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d1 - g + 15) % 30;
@@ -97,7 +65,7 @@ function getCurrentLiturgicalSeason(date = new Date()) {
   return { key: 'ORDINARIO', color: '#10B981', label: 'Tiempo Ordinario' };
 }
 
-/* ============ Motor de Acordes, Extracción y Auto-Relleno ============ */
+/* ============ Motor de Acordes ============ */
 const parsePart = (t) => {
   const m = ROOT.exec(t);
   if (!m) return null;
@@ -164,12 +132,11 @@ const convLine = (line, steps, mode) => {
   return line.match(/^\s*/)[0] + out;
 };
 
-// Función extractSong / chordLayout: limpia texto pegado de PDF o con acordes entre corchetes [DO]
+/* ============ Limpieza de Texto y Auto-Relleno ============ */
 function cleanAndExtractSongText(rawText) {
   const lines = String(rawText || '').replace(/\r\n/g, '\n').split('\n');
   const out = [];
   for (let line of lines) {
-    // Si tiene acordes entre corchetes tipo ChordPro: "Ya no [DO]soy yo quien [SOL]vive"
     if (/\[([A-Za-z#b0-9/]+)\]/.test(line)) {
       let chordLine = '';
       let lyricLine = '';
@@ -192,7 +159,6 @@ function cleanAndExtractSongText(rawText) {
   return out.join('\n');
 }
 
-// Función fillChords: toma el patrón de acordes de la primera estrofa y lo replica en estrofas sin acordes
 function autoFillMissingChords(bodyText) {
   const blocks = String(bodyText || '').trim().split(/\n\s*\n/);
   if (blocks.length < 2) return bodyText;
@@ -225,6 +191,120 @@ function autoFillMissingChords(bodyText) {
   return filledBlocks.join('\n\n');
 }
 
+/* ============ Lector PDF con alineación por coordenadas ============ */
+let pdfjsLibInstance = null;
+async function getPdfJs() {
+  if (pdfjsLibInstance) return pdfjsLibInstance;
+  if (window.pdfjsLib) {
+    pdfjsLibInstance = window.pdfjsLib;
+    return pdfjsLibInstance;
+  }
+  await new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = () => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      pdfjsLibInstance = window.pdfjsLib;
+      res();
+    };
+    s.onerror = rej;
+    document.head.appendChild(s);
+  });
+  return pdfjsLibInstance;
+}
+
+const rowText = (r) => r.items.map((i) => i.s).join(' ').replace(/\s+/g, ' ').trim();
+const median = (a) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : 0; };
+const rowChars = (r, cw) => {
+  const xs = []; let text = '', end = null;
+  for (const it of r.items) {
+    if (end !== null && it.x - end > cw * 0.4 && !text.endsWith(' ') && !it.s.startsWith(' ')) { text += ' '; xs.push(end); }
+    for (let k = 0; k < it.s.length; k++) { text += it.s[k]; xs.push(it.x + it.w * (k / it.s.length)); }
+    end = it.x + it.w;
+  }
+  return { text, xs };
+};
+
+async function pdfToSong(file) {
+  const pdfjs = await getPdfJs();
+  const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+  const pages = [];
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const tc = await (await pdf.getPage(p)).getTextContent();
+    const rows = [];
+    for (const it of tc.items) {
+      if (!it.str || !it.str.trim()) continue;
+      const y = it.transform[5];
+      let row = rows.find((r) => Math.abs(r.y - y) <= 2.5);
+      if (!row) rows.push((row = { y, items: [] }));
+      row.items.push({ x: it.transform[4], w: it.width, s: it.str });
+    }
+    rows.forEach((r) => r.items.sort((a, b) => a.x - b.x));
+    pages.push(rows.sort((a, b) => b.y - a.y));
+  }
+  const all = pages.flat();
+  if (!all.length) throw new Error('sin-texto');
+  const cw = median(all.flatMap((r) => r.items).filter((i) => i.s.length > 2).map((i) => i.w / i.s.length)) || 5;
+  const lines = [];
+  pages.forEach((rows, pi) => {
+    const mg = median(rows.slice(1).map((r, i) => rows[i].y - r.y)) || 12;
+    const xmin = Math.min(...rows.map((r) => r.items[0].x));
+    for (let i = 0; i < rows.length; i++) {
+      if (i && rows[i - 1].y - rows[i].y > mg * 1.7) lines.push('');
+      const r = rows[i];
+      if (!isChordLine(rowText(r))) { lines.push(rowChars(r, cw).text.trimEnd()); continue; }
+      const next = rows[i + 1];
+      const lyric = next && !isChordLine(rowText(next)) ? rowChars(next, cw) : null;
+      let line = '';
+      for (const it of r.items) {
+        for (const m of it.s.matchAll(/\S+/g)) {
+          const x = it.x + it.w * (m.index / it.s.length);
+          let col = lyric && lyric.xs.length
+            ? lyric.xs.reduce((b, cx, k) => (Math.abs(cx - x) < Math.abs(lyric.xs[b] - x) ? k : b), 0)
+            : Math.round((x - xmin) / cw);
+          col = Math.max(col, line.length ? line.length + 1 : 0);
+          line = line.padEnd(col) + m[0];
+        }
+      }
+      lines.push(line);
+    }
+    if (pi < pages.length - 1) lines.push('');
+  });
+  const body = lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  const ls = body.split('\n');
+  const ti = ls.findIndex((l) => l.trim() && !isChordLine(l));
+  const hasTitle = ti >= 0 && ti < 4;
+  const rest = hasTitle ? ls.filter((_, i) => i !== ti).join('\n').trim() : body;
+  const first = rest.split('\n').find(isChordLine)?.trim().split(/\s+/)[0];
+  const c = first && parseChord(first);
+  return {
+    title: hasTitle ? ls[ti].trim() : file.name.replace(/\.pdf$/i, ''),
+    body: rest,
+    originalKey: c ? fmtRoot(c.p, 0, 'lat').toUpperCase() + (/^(m(?!aj)|im)/.test(c.p.rest) ? 'm' : '') : '',
+  };
+}
+
+/* ============ Audio por Canto (IndexedDB local) ============ */
+const idb = () => new Promise((res, rej) => {
+  const r = indexedDB.open('cancionero_audio', 1);
+  r.onupgradeneeded = () => r.result.createObjectStore('audios');
+  r.onsuccess = () => res(r.result);
+  r.onerror = () => rej(r.error);
+});
+const idbRun = async (mode, fn) => {
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const tx = db.transaction('audios', mode);
+    const req = fn(tx.objectStore('audios'));
+    tx.oncomplete = () => res(req && req.result);
+    tx.onerror = () => rej(tx.error);
+  });
+};
+const audioPut = (id, blob) => idbRun('readwrite', (st) => st.put(blob, id));
+const audioGet = (id) => idbRun('readonly', (st) => st.get(id));
+const audioDel = (id) => idbRun('readwrite', (st) => st.delete(id));
+
 const normalizeCloudUrl = (url) => {
   const clean = String(url || '').trim();
   if (!clean) return '';
@@ -232,7 +312,7 @@ const normalizeCloudUrl = (url) => {
   return clean.replace(/\/+$/, '') + '/cancionero.json';
 };
 
-/* ============ Datos defensivos y Catálogo Inicial ============ */
+/* ============ Datos iniciales y Catálogo ============ */
 const norm = (s) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const normSong = (s) => {
   s = s && typeof s === 'object' ? s : {};
@@ -272,15 +352,8 @@ const normData = (d) => {
 const SEED = {
   songs: [
     {
-      id: '1791515587314',
-      title: 'IN PERSONA CHRISTI',
-      category: 'Iglesia',
-      liturgicalTime: 'ORDINARIO',
-      subcategory: 'COMUNIÓN',
-      originalKey: 'DO',
-      artist: 'JESED',
-      bpm: '63',
-      favorite: true,
+      id: '1791515587314', title: 'IN PERSONA CHRISTI', category: 'Iglesia', liturgicalTime: 'ORDINARIO',
+      subcategory: 'COMUNIÓN', originalKey: 'DO', artist: 'JESED', bpm: '63', favorite: true,
       lastOpened: Date.now(),
       body: `DO                 SOL/SI              LAm          LAm/SOL
 Ya no soy yo quien vive, tú eres quien vive en mí
@@ -304,15 +377,8 @@ FA                 SOL                DO
 por la salvación del mundo entero.`,
     },
     {
-      id: '1791515587315',
-      title: 'Yo sé que estás aquí',
-      category: 'Iglesia',
-      liturgicalTime: 'ORDINARIO',
-      subcategory: 'ADORACIÓN',
-      originalKey: 'REm',
-      artist: 'Renovación',
-      bpm: '68',
-      favorite: true,
+      id: '1791515587315', title: 'Yo sé que estás aquí', category: 'Iglesia', liturgicalTime: 'ORDINARIO',
+      subcategory: 'ADORACIÓN', originalKey: 'REm', artist: 'Renovación', bpm: '68', favorite: true,
       lastOpened: Date.now() - 10000,
       body: `REm                      SOLm
 Yo sé que estás aquí, mi Señor,
@@ -325,15 +391,8 @@ DO                       FA       LA7
 y mi alma te alaba, porque sé que estás aquí. (2)`,
     },
     {
-      id: '1791515587316',
-      title: 'La Mano de Dios',
-      category: 'Iglesia',
-      liturgicalTime: 'ORDINARIO',
-      subcategory: 'ADORACIÓN',
-      originalKey: 'SOL',
-      artist: 'Jon Carlo',
-      bpm: '70',
-      favorite: true,
+      id: '1791515587316', title: 'La Mano de Dios', category: 'Iglesia', liturgicalTime: 'ORDINARIO',
+      subcategory: 'ADORACIÓN', originalKey: 'SOL', artist: 'Jon Carlo', bpm: '70', favorite: true,
       lastOpened: Date.now() - 20000,
       body: `SOL                     RE/FA#
 Hay una mano que conmigo está
@@ -354,15 +413,8 @@ LAm7        RE          SOL
 es la mano de Dios.`,
     },
     {
-      id: '1791515587317',
-      title: 'CAMINANDO DESDE ORIENTE',
-      category: 'Iglesia',
-      liturgicalTime: 'NAVIDAD',
-      subcategory: 'ENTRADA',
-      originalKey: 'SOL',
-      artist: 'Tradicional',
-      bpm: '96',
-      favorite: false,
+      id: '1791515587317', title: 'CAMINANDO DESDE ORIENTE', category: 'Iglesia', liturgicalTime: 'NAVIDAD',
+      subcategory: 'ENTRADA', originalKey: 'SOL', artist: 'Tradicional', bpm: '96', favorite: false,
       lastOpened: Date.now() - 30000,
       body: `SOL                               RE
 Caminando desde Oriente se acercan ya los Reyes,
@@ -375,15 +427,8 @@ RE                                SOL
 al Niño que ha nacido en el portal.`,
     },
     {
-      id: '1791515587318',
-      title: 'ESTE ES EL MOMENTO',
-      category: 'Iglesia',
-      liturgicalTime: 'ORDINARIO',
-      subcategory: 'OFRENDAS',
-      originalKey: 'FA',
-      artist: 'Liturgia',
-      bpm: '74',
-      favorite: false,
+      id: '1791515587318', title: 'ESTE ES EL MOMENTO', category: 'Iglesia', liturgicalTime: 'ORDINARIO',
+      subcategory: 'OFRENDAS', originalKey: 'FA', artist: 'Liturgia', bpm: '74', favorite: false,
       lastOpened: Date.now() - 40000,
       body: `FA                      REm
 Este es el momento de alegrar la mesa
@@ -395,15 +440,8 @@ FA                      DO7
 y que hemos de comulgar.`,
     },
     {
-      id: '1791515587319',
-      title: 'JUNTOS NOS ACERCAMOS',
-      category: 'Iglesia',
-      liturgicalTime: 'ORDINARIO',
-      subcategory: 'OFRENDAS',
-      originalKey: 'DO',
-      artist: 'Tradicional',
-      bpm: '76',
-      favorite: false,
+      id: '1791515587319', title: 'JUNTOS NOS ACERCAMOS', category: 'Iglesia', liturgicalTime: 'ORDINARIO',
+      subcategory: 'OFRENDAS', originalKey: 'DO', artist: 'Tradicional', bpm: '76', favorite: false,
       lastOpened: Date.now() - 50000,
       body: `DO                  SOL             LAm
 Juntos nos acercamos a esta mesa para ofrecer
@@ -415,15 +453,8 @@ FA                  SOL             DO
 deja que nuestras manos lleguen a Ti.`,
     },
     {
-      id: '1791515587320',
-      title: 'Te Entrego',
-      category: 'Iglesia',
-      liturgicalTime: 'ORDINARIO',
-      subcategory: 'ADORACIÓN',
-      originalKey: 'SOL',
-      artist: 'Joan Sánchez',
-      bpm: '66',
-      favorite: true,
+      id: '1791515587320', title: 'Te Entrego', category: 'Iglesia', liturgicalTime: 'ORDINARIO',
+      subcategory: 'ADORACIÓN', originalKey: 'SOL', artist: 'Joan Sánchez', bpm: '66', favorite: true,
       lastOpened: Date.now() - 60000,
       body: `SOL                 DO
 Haz lo que quieras conmigo,
@@ -446,15 +477,8 @@ MIm                 DO              RE          SOL
 para amarte a Ti, mi Señor.`,
     },
     {
-      id: '1791515587321',
-      title: 'Venimos a Adorar',
-      category: 'Iglesia',
-      liturgicalTime: 'ORDINARIO',
-      subcategory: 'ADORACIÓN',
-      originalKey: 'RE',
-      artist: 'Ministerio',
-      bpm: '70',
-      favorite: false,
+      id: '1791515587321', title: 'Venimos a Adorar', category: 'Iglesia', liturgicalTime: 'ORDINARIO',
+      subcategory: 'ADORACIÓN', originalKey: 'RE', artist: 'Ministerio', bpm: '70', favorite: false,
       lastOpened: Date.now() - 70000,
       body: `RE                  LA/DO#          SIm
 El Rey del universo y Señor de la creación
@@ -493,7 +517,7 @@ const load = () => {
   return { data: normData(SEED), theme: 'nocturno', cloud: DEFAULT_CLOUD, lang: 'es' };
 };
 
-/* ============ Iconos SVG ============ */
+/* ============ Iconos ============ */
 const PATHS = {
   home: 'M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
   list: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
@@ -508,6 +532,8 @@ const PATHS = {
   expand: 'M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3',
   wand: 'M15 4V2m0 14v-2M8 9h2m10 0h2m-4.2-3.8L19 4m-1.2 9.8L19 15M3 21l9-9m.2-6.8L11 4',
   globe: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 0c2.5 2.5 4 6 4 10s-1.5 7.5-4 10c-2.5-2.5-4-6-4-10s1.5-7.5 4-10zM2 12h20',
+  music: 'M9 18V5l12-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zm12 0a3 3 0 1 1-6 0 3 3 0 0 1 6 0z',
+  filePdf: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 15v-4h2a1.5 1.5 0 0 1 0 3H9',
 };
 const Icon = ({ n, size = 18, fill = 'none' }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -515,7 +541,7 @@ const Icon = ({ n, size = 18, fill = 'none' }) => (
   </svg>
 );
 
-/* ============ Componentes Modulares ============ */
+/* ============ Componentes ============ */
 function Card({ s, onOpen, onFav }) {
   return (
     <div className="card" role="button" tabIndex={0} data-testid="song-card" aria-label={`Abrir ${s.title}`}
@@ -545,9 +571,66 @@ function Section({ id, title, list, empty, ...cardProps }) {
   );
 }
 
-/* Cajón Deslizante de Edición de Canto (SongEditorDrawer + extractSong + fillChords) */
+/* Reproductor de Audio para el Atril */
+function AudioPanel({ song, meta, onMeta, toast }) {
+  const [url, setUrl] = useState(null);
+  useEffect(() => {
+    let u = null, live = true;
+    setUrl(null);
+    if (meta) {
+      audioGet(song.id).then((b) => {
+        if (b && live) {
+          u = URL.createObjectURL(b);
+          setUrl(u);
+        }
+      }).catch(() => {});
+    }
+    return () => { live = false; if (u) URL.revokeObjectURL(u); };
+  }, [song.id, meta]);
+
+  const pick = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      await audioPut(song.id, file);
+      onMeta({ name: file.name, size: file.size, type: file.type });
+      toast('Audio del canto guardado');
+    } catch {
+      toast('No se pudo guardar el audio en el navegador');
+    }
+  };
+
+  const remove = async () => {
+    try { await audioDel(song.id); } catch { /* noop */ }
+    onMeta(null);
+    toast('Audio eliminado');
+  };
+
+  return (
+    <div className="audio-box">
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <div className="row" style={{ gap: 8 }}>
+          <Icon n="music" size={18} />
+          <label className="ghost row" style={{ border: '1px solid var(--bd2)', borderRadius: 'var(--ri)', padding: '6px 12px', cursor: 'pointer', fontSize: 13 }}>
+            {meta ? 'Reemplazar audio' : 'Subir audio del canto'}
+            <input type="file" accept="audio/*" style={{ display: 'none' }} onChange={pick} />
+          </label>
+          {meta && <span className="meta" style={{ margin: 0, fontSize: 12 }}>{meta.name}</span>}
+        </div>
+        {meta && <button className="ghost" style={{ fontSize: 12, color: '#EF4444' }} onClick={remove}>Quitar audio</button>}
+      </div>
+      {url && (
+        <audio controls src={url} style={{ width: '100%', marginTop: 10, height: 36 }} />
+      )}
+    </div>
+  );
+}
+
+/* Cajón Deslizante con Lector PDF y Asistente de Acordes */
 function SongEditorDrawer({ init, edit, onSave, onClose, onDelete, onToast }) {
   const [s, setS] = useState(init);
+  const [loadingPdf, setLoadingPdf] = useState(false);
   const set = (k) => (e) => setS((x) => ({ ...x, [k]: e.target.value }));
   const field = (k, label, placeholder = '') => (
     <div><label>{label}</label><input data-testid={`field-${k}`} aria-label={label} placeholder={placeholder} value={s[k]} onChange={set(k)} /></div>
@@ -555,12 +638,34 @@ function SongEditorDrawer({ init, edit, onSave, onClose, onDelete, onToast }) {
 
   const handleCleanText = () => {
     setS((x) => ({ ...x, body: cleanAndExtractSongText(x.body) }));
-    onToast('Formato de letra y acordes alineado');
+    onToast('Formato de acordes alineado');
   };
 
   const handleAutoFillChords = () => {
     setS((x) => ({ ...x, body: autoFillMissingChords(x.body) }));
-    onToast('Acordes replicados en las estrofas siguientes');
+    onToast('Acordes replicados en el resto de estrofas');
+  };
+
+  const handlePdfUpload = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    setLoadingPdf(true);
+    onToast('Procesando PDF con acordes...');
+    try {
+      const parsed = await pdfToSong(file);
+      setS((prev) => ({
+        ...prev,
+        title: prev.title === 'Sin título' || !prev.title ? parsed.title : prev.title,
+        body: parsed.body,
+        originalKey: parsed.originalKey || prev.originalKey,
+      }));
+      onToast('Canto importado del PDF con éxito');
+    } catch (err) {
+      onToast(err.message === 'sin-texto' ? 'El PDF no contiene texto seleccionable' : 'Error al procesar el PDF');
+    } finally {
+      setLoadingPdf(false);
+    }
   };
 
   return (
@@ -570,6 +675,16 @@ function SongEditorDrawer({ init, edit, onSave, onClose, onDelete, onToast }) {
           <h2 style={{ margin: 0 }}>{edit ? 'Editar canto' : 'Nuevo canto'}</h2>
           <button className="ghost" onClick={onClose}>✕</button>
         </div>
+
+        {/* Botón para importar PDF directamente dentro del editor */}
+        <div className="pdf-bar">
+          <label className="primary row" style={{ cursor: 'pointer', padding: '7px 12px', fontSize: 13, gap: 6 }}>
+            <Icon n="filePdf" size={16} />{loadingPdf ? 'Leyendo PDF...' : 'Cargar desde archivo PDF'}
+            <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={loadingPdf} onChange={handlePdfUpload} />
+          </label>
+          <span className="meta" style={{ margin: 0, fontSize: 12 }}>Importa acordes alineados automáticamente</span>
+        </div>
+
         {field('title', 'Título del canto', 'Ej. Pescador de Hombres')}
         <div className="two">
           {field('artist', 'Autor / Ministerio', 'Ej. Cesáreo Gabaráin')}
@@ -592,17 +707,18 @@ function SongEditorDrawer({ init, edit, onSave, onClose, onDelete, onToast }) {
         <div className="row" style={{ justifyContent: 'space-between', marginTop: 14, marginBottom: 4 }}>
           <label style={{ margin: 0 }}>Letra y acordes</label>
           <div className="row" style={{ gap: 6 }}>
-            <button type="button" className="ghost" style={{ padding: '4px 9px', fontSize: 12 }} onClick={handleCleanText} title="Convierte acordes entre [corchetes] o limpia texto pegado de PDF">
+            <button type="button" className="ghost" style={{ padding: '4px 9px', fontSize: 12 }} onClick={handleCleanText} title="Limpia texto de PDF o convierte acordes entre [corchetes]">
               Limpiar PDF / [Acordes]
             </button>
-            <button type="button" className="ghost row" style={{ padding: '4px 9px', fontSize: 12, gap: 4 }} onClick={handleAutoFillChords} title="Copia los acordes de la 1ª estrofa en las demás estrofas sin acordes">
+            <button type="button" className="ghost row" style={{ padding: '4px 9px', fontSize: 12, gap: 4 }} onClick={handleAutoFillChords} title="Copia los acordes de la 1ª estrofa al resto">
               <Icon n="wand" size={14} />Auto-rellenar acordes
             </button>
           </div>
         </div>
-        <textarea data-testid="field-body" aria-label="Letra y acordes" placeholder="Escribe los acordes en su propia línea sobre la letra, o pega letra con [DO] acordes..." value={s.body} onChange={set('body')} />
-        <label>Notas de interpretación / Cejilla (Capo)</label>
-        <input data-testid="field-notes" aria-label="Notas" placeholder="Ej. Cejilla en 2º traste, arpegio suave en la introducción" value={s.notes} onChange={set('notes')} />
+        <textarea data-testid="field-body" aria-label="Letra y acordes" placeholder="Los acordes deben ir en su propia línea sobre la letra..." value={s.body} onChange={set('body')} />
+        <label>Notas de interpretación / Cejilla</label>
+        <input data-testid="field-notes" aria-label="Notas" placeholder="Ej. Cejilla en 2º traste" value={s.notes} onChange={set('notes')} />
+
         <div className="row" style={{ marginTop: 18, justifyContent: 'flex-end' }}>
           {edit && <button className="ghost" style={{ marginRight: 'auto', color: '#EF4444' }} onClick={() => onDelete(s.id)}>Eliminar</button>}
           <button className="ghost" onClick={onClose}>Cancelar</button>
@@ -613,7 +729,7 @@ function SongEditorDrawer({ init, edit, onSave, onClose, onDelete, onToast }) {
   );
 }
 
-/* Cajón Deslizante para Crear/Editar Repertorios (SetlistEditorDrawer) */
+/* Cajón de Creación/Edición de Repertorios */
 function SetlistEditorDrawer({ init, songs, onSave, onClose }) {
   const [list, setList] = useState(init);
   const [search, setSearch] = useState('');
@@ -645,11 +761,11 @@ function SetlistEditorDrawer({ init, songs, onSave, onClose }) {
           </div>
           <div>
             <label>Notas</label>
-            <input value={list.notes || ''} placeholder="Ej. Coro parroquial" onChange={(e) => setList({ ...list, notes: e.target.value })} />
+            <input value={list.notes || ''} placeholder="Ej. Coro Parroquial" onChange={(e) => setList({ ...list, notes: e.target.value })} />
           </div>
         </div>
         <label style={{ marginTop: 14 }}>Seleccionar cantos ({list.songIds.length} elegidos)</label>
-        <input type="search" placeholder="Filtrar cantos por nombre o momento..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 8 }} />
+        <input type="search" placeholder="Buscar por título o momento..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 8 }} />
         <div style={{ maxHeight: 280, overflowY: 'auto', display: 'grid', gap: 6, paddingRight: 4 }}>
           {filtered.map((s) => {
             const active = list.songIds.includes(s.id);
@@ -674,7 +790,7 @@ function SetlistEditorDrawer({ init, songs, onSave, onClose }) {
   );
 }
 
-/* ============ App Principal ============ */
+/* ============ Aplicación Principal ============ */
 export default function App() {
   const boot = useRef(null);
   if (!boot.current) boot.current = load();
@@ -699,7 +815,7 @@ export default function App() {
 
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
-    try { localStorage.setItem(KEY, JSON.stringify({ data: D, theme, cloud, lang })); } catch { /* sin almacenamiento */ }
+    try { localStorage.setItem(KEY, JSON.stringify({ data: D, theme, cloud, lang })); } catch { /* sin storage */ }
   }, [D, theme, cloud, lang]);
 
   useEffect(() => {
@@ -733,7 +849,13 @@ export default function App() {
   };
   const delSong = (id) => {
     if (!window.confirm('¿Eliminar este canto?')) return;
-    setD((d) => ({ ...d, songs: d.songs.filter((s) => s.id !== id), setlists: d.setlists.map((l) => ({ ...l, songIds: l.songIds.filter((x) => x !== id) })) }));
+    audioDel(id).catch(() => {});
+    setD((d) => ({
+      ...d,
+      songs: d.songs.filter((s) => s.id !== id),
+      audios: Object.fromEntries(Object.entries(d.audios || {}).filter(([k]) => k !== id)),
+      setlists: d.setlists.map((l) => ({ ...l, songIds: l.songIds.filter((x) => x !== id) }))
+    }));
     setModal(null); go('inicio'); toast('Canto eliminado');
   };
 
@@ -755,7 +877,7 @@ export default function App() {
     const c = [...ids]; [c[i], c[j]] = [c[j], c[i]]; return c;
   });
 
-  // Sincronización Firebase Realtime Database
+  /* Sincronización con Firebase Realtime Database */
   const pushToCloud = async () => {
     const endpoint = normalizeCloudUrl(cloud);
     if (!endpoint) return toast('Escribe primero la URL de Firebase');
@@ -799,11 +921,11 @@ export default function App() {
       a.href = u; a.download = 'cancionero-respaldo.json';
       document.body.append(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(u), 1000);
-    } catch { /* fallback en texto */ }
+    } catch { /* noop */ }
     navigator.clipboard?.writeText(j).then(() => toast('Respaldo copiado'), () => toast('Respaldo generado'));
   };
 
-  /* ---- Derivados y SetlistPlayer ---- */
+  /* ---- Derivados ---- */
   const q = norm(f.q);
   const all = D.songs.filter((s) =>
     (!f.time || s.liturgicalTime === f.time) && (!f.moment || s.subcategory === f.moment) && (!f.fav || s.favorite) &&
@@ -848,14 +970,28 @@ export default function App() {
         <h1>{T.catalogTitle}</h1>
         <span className="badge" data-testid="sync-badge">{BADGE_TXT[sync]}</span>
         <span style={{ flex: 1 }} />
-        <button className="ghost row" onClick={() => setLang(lang === 'es' ? 'en' : 'es')} title="Cambiar idioma">
+        <label className="ghost row" style={{ border: '1px solid var(--bd2)', borderRadius: 'var(--ri)', padding: '7px 12px', cursor: 'pointer', fontSize: 13, gap: 6 }}>
+          <Icon n="filePdf" size={16} />Importar PDF
+          <input type="file" accept="application/pdf" style={{ display: 'none' }} onChange={async (e) => {
+            const file = e.target.files[0];
+            e.target.value = '';
+            if (!file) return;
+            toast('Leyendo PDF…');
+            try {
+              const parsed = await pdfToSong(file);
+              setModal({ edit: false, song: normSong({ id: String(Date.now()), ...parsed }) });
+            } catch (err) {
+              toast(err.message === 'sin-texto' ? 'El PDF no tiene texto seleccionable' : 'No se pudo leer el PDF');
+            }
+          }} />
+        </label>
+        <button className="ghost row" onClick={() => setLang(lang === 'es' ? 'en' : 'es')} title="Idioma">
           <Icon n="globe" size={16} />{lang.toUpperCase()}
         </button>
         <button className="ghost" onClick={pullFromCloud}>Descargar de Firebase</button>
-        <button className="ghost" onClick={() => window.alert('1. Toca + para crear un canto o pegar desde PDF.\n2. Usa "Auto-rellenar acordes" para copiar los acordes de la 1ª estrofa al resto.\n3. En Repertorios pulsa "Iniciar Misa" para pasar de canto en canto en vivo.')}>{T.guide}</button>
+        <button className="ghost" onClick={() => window.alert('1. Toca + para crear un canto o pulsa "Importar PDF".\n2. En el atril puedes subir el audio MP3 del canto para ensayar.\n3. En Repertorios pulsa "Iniciar Misa" para pasar de canto en vivo.')}>{T.guide}</button>
       </div>
 
-      {/* Banner de Tiempo Litúrgico Automático (src/lib/liturgy.js) */}
       <div className="season-banner">
         <span className="season-dot" style={{ background: currentSeason.color }} />
         <div style={{ flex: 1 }}>
@@ -892,7 +1028,6 @@ export default function App() {
 
   const lector = !song ? <p>Canto no encontrado.</p> : (
     <>
-      {/* Barra de Reproductor de Misa en Vivo (SetlistPlayer.jsx) si se abrió desde un repertorio */}
       {activeSetlist && setlistSongs.length > 0 && (
         <div className="setlist-player-bar">
           <div className="row" style={{ justifyContent: 'space-between', width: '100%' }}>
@@ -953,10 +1088,23 @@ export default function App() {
         </div>
       </div>
       <h1>{song.title}</h1>
-      <div className="meta" style={{ marginBottom: 18 }}>
+      <div className="meta" style={{ marginBottom: 14 }}>
         {[song.artist, currentKeyLabel, song.bpm && song.bpm + ' BPM', song.liturgicalTime, song.subcategory].filter(Boolean).join(' · ')}
       </div>
       {song.notes && <p className="meta">{song.notes}</p>}
+
+      {/* Reproductor de Audio del Canto */}
+      <AudioPanel
+        song={song}
+        meta={D.audios && D.audios[song.id]}
+        toast={toast}
+        onMeta={(m) => setD((d) => {
+          const a = { ...(d.audios || {}) };
+          if (m) a[song.id] = m; else delete a[song.id];
+          return { ...d, audios: a };
+        })}
+      />
+
       <pre className="body" data-testid="song-body" style={{ '--fs': rd.fs + 'px' }}>
         {song.body.split('\n').map((l, i) => (
           <span key={i} className={isChordLine(l) ? 'ch' : undefined}>{isChordLine(l) ? convLine(l, rd.steps, rd.mode) : l}{'\n'}</span>
@@ -1028,7 +1176,7 @@ export default function App() {
         ))}
       </div>
       <h2>Nube (Firebase Realtime Database)</h2>
-      <p className="meta">Enlace de tu base de datos en tiempo real para sincronizar entre computador, tablet y celular:</p>
+      <p className="meta">Enlace de tu base de datos para sincronizar entre computador, tablet y celular:</p>
       <input className="ta" data-testid="cloud-url" aria-label="URL de la nube" placeholder="https://mi-cancionero-6d816-default-rtdb.firebaseio.com/cancionero.json"
         value={cloud} onChange={(e) => setCloud(e.target.value.trim())} />
       <div className="row" style={{ marginTop: 10 }}>
@@ -1087,7 +1235,6 @@ export default function App() {
           )}
         </main>
 
-        {/* Barra de Navegación Inferior Móvil (MobileTabBar.jsx) */}
         {!(rd.stage && view === 'lector') && (
           <nav className="mobile-tabbar" aria-label="Navegación móvil">
             {nav('inicio', 'home', T.home)}
@@ -1104,7 +1251,7 @@ export default function App() {
   );
 }
 
-/* ============ Estilos (Tokens Semánticos + Drawers + MobileTabBar + SetlistPlayer) ============ */
+/* ============ Estilos ============ */
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap');
 :root{--bg-app:#12100E;--bg-panel:#1A1714;--bd:rgba(255,255,255,.07);--bd2:rgba(255,255,255,.12);--tx:#EDE6DD;--mut:#9A8F84;--accent-primary:#DF8A65;--ink:#12100E;--chord:#DF8A65;--ok:#10B981;--r:14px;--ri:8px;--ease:cubic-bezier(.22,1,.36,1);color-scheme:dark}
@@ -1160,11 +1307,12 @@ h1{font-size:32px}h2{font-size:22px;margin:30px 0 12px}
 .cont b{font-family:'Playfair Display',Georgia,serif}
 .setlist-box{background:var(--bg-panel);border:1px solid var(--bd);border-radius:var(--r);padding:18px;margin-top:18px}
 .setlist-player-bar{background:var(--bg-panel);border:1px solid var(--bd2);border-radius:var(--r);padding:12px 16px;margin-bottom:14px}
+.audio-box{background:var(--bg-panel);border:1px solid var(--bd2);border-radius:var(--r);padding:12px 16px;margin-bottom:18px}
+.pdf-bar{display:flex;align-items:center;gap:10px;background:var(--bg-app);border:1px dashed var(--bd2);border-radius:var(--ri);padding:10px 12px;margin:12px 0}
 .tools{position:sticky;top:-26px;z-index:5;background:var(--bg-app);padding:10px 0;border-bottom:1px solid var(--bd);margin-bottom:14px}
 .val{min-width:34px;text-align:center;font-weight:600}
 pre.body{font:400 var(--fs,16px)/1.65 'JetBrains Mono',ui-monospace,monospace;white-space:pre-wrap;margin:0}
 .ch{color:var(--chord);font-weight:600}
-/* Cajones Deslizantes (Drawers) */
 .drawer-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;justify-content:flex-end;z-index:40;animation:fade 180ms var(--ease)}
 @keyframes fade{from{opacity:0}}
 .drawer{background:var(--bg-panel);border-left:1px solid var(--bd2);padding:24px;width:min(560px,100%);height:100%;overflow-y:auto;animation:slideIn 240ms var(--ease)}
